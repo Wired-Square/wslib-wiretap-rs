@@ -1,0 +1,58 @@
+[package]
+name = "wiretap-io"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Device I/O for WireTAP, one transport per feature: Modbus TCP reads, writes behind their own feature, a serial port, read-only unless writes are on, and a listing of the ports, GVRET over TCP or a serial port, SLCAN, gs_usb and PEAK's PCAN-USB and its CAN FD family (untested) on macOS and Windows, and SocketCAN on Linux."
+readme = "README.md"
+
+[features]
+modbus-tcp = ["dep:tokio", "dep:tokio-modbus", "dep:thiserror", "dep:wiretap-catalog"]
+modbus-write = ["modbus-tcp"]
+modbus-task = ["modbus-tcp", "tokio/rt", "tokio/sync", "tokio/macros"]
+testing = ["modbus-tcp", "tokio/rt", "tokio/sync", "tokio/macros", "tokio/io-util"]
+serial = ["dep:tokio", "tokio/rt", "tokio/sync", "tokio/macros", "dep:thiserror", "dep:wiretap-catalog", "dep:nix", "dep:serialport"]
+serial-ports = ["serial", "serialport/any-os"]
+serial-write = ["serial-ports"]
+# What every `can-*` transport shares; alone it brings the types and no transport.
+can = ["dep:tokio", "tokio/rt", "tokio/sync", "tokio/macros", "dep:thiserror", "dep:wiretap-protocol"]
+can-gvret = ["can"]
+can-gvret-serial = ["can-gvret", "serial-write"]
+can-slcan = ["can", "serial-write"]
+can-gsusb = ["can", "dep:nusb"]
+can-pcan = ["can", "dep:nusb"]
+can-socketcan = ["can", "dep:socketcan", "dep:libc"]
+
+[target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux", target_os = "ios"))'.dependencies]
+tokio = { version = "1", features = ["net", "time"], optional = true }
+tokio-modbus = { version = "0.17", default-features = false, features = ["tcp"], optional = true }
+thiserror = { version = "2", optional = true }
+wiretap-catalog = { path = "../wiretap-catalog", optional = true }
+wiretap-protocol = { path = "../wiretap-protocol", optional = true }
+
+[target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
+# serialport on Windows, and elsewhere only with `serial-ports`: a feature can't
+# be per-target, so the shim is.
+serialport = { package = "wiretap-serialport", path = "../../shims/serialport", optional = true }
+
+[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
+nix = { version = "0.29", features = ["term", "fs", "ioctl"], optional = true }
+
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+nusb = { version = "0.2", features = ["tokio"], optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+socketcan = { version = "3.6", default-features = false, features = ["netlink"], optional = true }
+libc = { version = "0.2", optional = true }
+
+[dev-dependencies]
+# So the workspace's `cargo test --all`, which names no features, tests every path.
+wiretap-io = { path = ".", features = ["modbus-task", "modbus-write", "testing", "serial-write", "can-gvret-serial", "can-slcan", "can-gsusb", "can-pcan", "can-socketcan"] }
+tokio = { version = "1", features = ["macros", "rt", "net", "io-util", "time"] }
+
+[target.'cfg(unix)'.dev-dependencies]
+nix = { version = "0.29", features = ["term", "fs"] }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+socketcan = { version = "3.6", default-features = false }

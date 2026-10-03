@@ -1,0 +1,16 @@
+[package]
+name = "wiretap-decode"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Protocol-agnostic decode primitives for WireTAP catalogues: bit extraction, word-swap, exact Decimal scaling, and value formatting."
+readme = "README.md"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+rust_decimal = "1"
+
+[dev-dependencies]
+rust_decimal_macros = "1"
+serde_json = "1"

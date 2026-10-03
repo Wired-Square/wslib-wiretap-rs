@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  # main + PRs only. No `tags` trigger: a release tag (cut by `cargo release`)
+  # points at a main commit CI already tested on its push, so a tag trigger
+  # would just re-run the identical tree as a confusing duplicate.
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: fmt · clippy · test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --all
+      - name: Docs
+        run: cargo doc --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+      # The SocketCAN tests are ignored without a vcan interface, which only
+      # root can make, and fail rather than skip when asked for without one.
+      # The runner's kernel keeps vcan in its own linux-modules-extra.
+      - name: Bring up vcan0
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+          sudo modprobe vcan
+          sudo ip link add dev vcan0 type vcan
+          sudo ip link set up vcan0
+      - name: SocketCAN against vcan0
+        run: cargo test -p wiretap-io --test can_socketcan -- --ignored --test-threads=1
+
+      # The release config's promises to consumers, checked on every push and
+      # PR rather than only at release time. The pre-release hook runs this too,
+      # but a hook cannot notice its own deletion — this step can.
+      - name: Release contract
+        run: scripts/check-release-contract.sh

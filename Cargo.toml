@@ -1,0 +1,14 @@
+# Workspace root for the WireTAP Rust libraries (`wslib-wiretap-rs`). Crates live
+# under `crates/<name>/` and share the metadata below via `<field>.workspace =
+# true` — including `version`, so the whole workspace is versioned and released
+# as a single unit (one `vX.Y.Z` tag covers every member).
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+exclude = ["shims/serialport"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/Wired-Square/wslib-wiretap-rs"

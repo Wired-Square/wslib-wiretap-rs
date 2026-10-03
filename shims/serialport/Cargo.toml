@@ -1,0 +1,21 @@
+# Outside the workspace: not versioned or released with the crates, and pinned
+# only through wiretap-io's path to it. Its own root, so cargo run here from a
+# worktree nested in the repo doesn't climb into the repo's workspace.
+[workspace]
+
+[package]
+name = "wiretap-serialport"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "serialport on Windows always, elsewhere only with `any-os`, because a feature can't be per-target."
+
+[features]
+any-os = ["dep:serialport"]
+
+[dependencies]
+serialport = { version = "4.9", default-features = false, optional = true }
+
+[target.'cfg(windows)'.dependencies]
+serialport = { version = "4.9", default-features = false }

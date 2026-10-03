@@ -1,0 +1,11 @@
+[package]
+name = "wiretap-protocol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Scalar-in, scalar-out codecs for the wire protocols WireTAP speaks: the CAN data length code table, GVRET, SLCAN, SLIP, gs_usb, PCAN-USB, the PCAN-USB FD family (untested), the SocketCAN frame layouts, the Test Pattern link validator, the binary ingest protocol, the capture-import record, the CAN frame, the candump log and SavvyCAN CSV text formats, and delimiter framing."
+readme = "README.md"
+
+# Empty, and it is meant to stay that way. README.md says why.
+[dependencies]

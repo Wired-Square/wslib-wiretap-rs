@@ -1,0 +1,35 @@
+# cargo-release config — the one canonical release path. The whole workspace
+# (`wslib-wiretap-rs`) is versioned and released as a single unit: every crate shares
+# `[workspace.package] version`, so one command bumps them all and cuts one tag.
+#
+#   cargo install cargo-release          # once per machine
+#   cargo release patch                  # dry-run preview (0.16.0 -> 0.16.1)
+#   cargo release patch -x               # --execute: bump all crates, commit, tag, push
+#   cargo release minor -x               # 0.16.0 -> 0.17.0
+#
+# Distributed by git tag — consumers pin `tag = "vX.Y.Z"` and build from source
+# — so we never publish to crates.io.
+
+publish = false
+push = true
+shared-version = true
+allow-branch = ["main"]
+tag-name = "v{{version}}"
+pre-release-commit-message = "Release v{{version}}"
+
+# The consumer contract guard, then CI parity — run before the version is
+# committed and tagged, so a tag is never cut from a red tree or with a pin that
+# will quietly go stale. See scripts/check-release-contract.sh for what a
+# consumer is relying on and why this file has to keep backing it.
+pre-release-hook = [
+    "bash",
+    "-c",
+    "\"$WORKSPACE_ROOT\"/scripts/check-release-contract.sh && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --all && RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps",
+]
+
+# Keep each crate README's pin example pointing at the version being released.
+# `min = 0` so a crate whose README has no pin line (e.g. the internal
+# wiretap-decode) doesn't fail the release.
+pre-release-replacements = [
+    { file = "README.md", search = 'tag = "v[0-9]+\.[0-9]+\.[0-9]+"', replace = 'tag = "v{{version}}"', min = 0 },
+]

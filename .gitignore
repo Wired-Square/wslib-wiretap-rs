@@ -1,0 +1,7 @@
+/target
+Cargo.lock
+.DS_Store
+
+# Local Claude Code config — never commit
+CLAUDE.md
+/.claude/

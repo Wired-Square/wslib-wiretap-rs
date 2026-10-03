@@ -1,0 +1,109 @@
+# Trimmed copy of WireTAP's Sungrow SHx Modbus manifest, kept as a test
+# fixture for the manifest parser/decoder. Only the frames the unit tests
+# exercise are retained; the full register map lives in the WireTAP repo.
+# Format and field semantics are identical to the upstream manifest.
+
+[meta]
+name = "Sungrow SHx"
+version = 1
+default_frame = "modbus"
+
+[meta.modbus]
+device_address = 1
+register_base = 0
+default_interval = 5000
+default_byte_order = "big"
+default_word_order = "little"
+
+# ASCII version string — non-numeric, skipped by the decoder.
+[frame.modbus.version_1]
+register_number = 2581
+register_type = "input"
+length = 11
+tx.interval_ms = 600000
+
+[[frame.modbus.version_1.signals]]
+name = "Sungrow_Version_1"
+start_bit = 0
+bit_length = 176
+format = "ascii"
+
+# Solar / PV production — MPPT voltages/currents (16-bit) + total DC power
+# (32-bit, word-swapped).
+[frame.modbus.solar_pv]
+register_number = 5010
+register_type = "input"
+length = 8
+
+[[frame.modbus.solar_pv.signals]]
+name = "MPPT1_Voltage"
+start_bit = 0
+bit_length = 16
+factor = 0.1
+unit = "V"
+
+[[frame.modbus.solar_pv.signals]]
+name = "Total_DC_Power"
+start_bit = 96
+bit_length = 32
+unit = "W"
+
+# Battery power — S32, negative = charging, positive = discharging.
+[frame.modbus.battery_power]
+register_number = 5213
+register_type = "input"
+length = 2
+
+[[frame.modbus.battery_power.signals]]
+name = "Battery_Power"
+start_bit = 0
+bit_length = 32
+unit = "W"
+signed = true
+
+# Battery status — voltage, SoC, SoH, temperature, discharge energy.
+[frame.modbus.battery_status]
+register_number = 13019
+register_type = "input"
+length = 9
+tx.interval_ms = 10000
+
+[[frame.modbus.battery_status.signals]]
+name = "Battery_Voltage"
+start_bit = 0
+bit_length = 16
+factor = 0.1
+unit = "V"
+
+[[frame.modbus.battery_status.signals]]
+name = "Battery_SoC"
+start_bit = 48
+bit_length = 16
+factor = 0.1
+unit = "%"
+
+[[frame.modbus.battery_status.signals]]
+name = "Battery_Temperature"
+start_bit = 80
+bit_length = 16
+factor = 0.1
+unit = "°C"
+signed = true
+
+# Holding registers — EMS mode & forced charge/discharge (readback).
+[frame.modbus.ems_control]
+register_number = 13049
+register_type = "holding"
+length = 3
+tx.interval_ms = 30000
+
+[[frame.modbus.ems_control.signals]]
+name = "EMS_Mode"
+start_bit = 0
+bit_length = 16
+
+[[frame.modbus.ems_control.signals]]
+name = "Forced_Charge_Discharge_Power"
+start_bit = 32
+bit_length = 16
+unit = "W"

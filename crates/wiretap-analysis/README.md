@@ -1,0 +1,56 @@
+# wiretap-analysis
+
+Payload analysis for WireTAP frames in the [`wslib-wiretap-rs`](../../) workspace:
+which bytes are worth solving as a checksum at all, the geometries to solve them
+over, the scan that drives both across a capture, and what every other byte
+does.
+
+Where [`wiretap-checksum`](../wiretap-checksum) answers *what algorithm is this
+byte*, this crate answers the prior and cheaper question — *is this byte a
+checksum* — which usually decides the answer, because most links carry no
+checksum on most frame ids.
+
+## What's here
+
+- **`checksum_evidence`** — the per-column verdict: which bytes could be a
+  checksum at all
+- **`solve_targets`** — each surviving column crossed with every calculation
+  range `wiretap-checksum::calc_ranges` offers, so a checksum that skips a
+  leading type byte reaches the solver and not only the sweep
+- **`scan_frames` / `scan_groups`** — group by frame id, sample, identify,
+  sweep, solve, rank
+- **`profile_bytes`** — byte roles for one frame id: each column from the front
+  classed static, counter (linear or looping), sensor, value or unknown, with
+  mux detection (`detect_mux`) splitting a multiplexed frame into cases, and
+  the patterns that span adjacent columns (`find_patterns`): 16-bit counters,
+  16- and 32-bit sensors, text, and the byte order they imply. Input is oldest
+  first and contiguous; ordering is the caller's job
+- **`serial_structure`** — a serial link's candidate id bytes (one or two, in
+  bytes 0–4) and source-address bytes (in the five after the best id), each
+  with its values, a 0–100 confidence and the reasons as codes, not text.
+  Checksum candidates stay `wiretap-checksum::detect_checksum`'s
+- **`hypothesis::rank_fields`** — a sweep of candidate bit fields over one
+  frame's payload (`Sweep`), each a `wiretap-decode` `PayloadField` scored 0–100
+  against its byte profile, best first, with the reasons as codes. Capping the
+  list is the caller's
+
+Per-byte-column statistics live in [`wiretap-checksum`](../wiretap-checksum),
+beside the addressing they are indexed by; reach for them there directly. Roles
+read the same statistics from the front (`Anchor::Front`) rather than keeping
+their own.
+
+The classifier's thresholds are the desktop's TypeScript ones, pinned by the
+golden fixture in `tests/fixtures/byte_roles`; the ranking's weights are pinned
+the same way in `tests/fixtures/hypothesis`.
+
+## Using it
+
+```toml
+wiretap-analysis = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.1.0" }
+```
+
+Nothing in this workspace depends on it; its consumers are outside.
+
+Identification **narrows** the search rather than deciding it, and the property
+the tests pin is the one that matters — a real checksum must never be filtered
+out. That argument is in `src/checksum.rs`, beside the test that holds it.

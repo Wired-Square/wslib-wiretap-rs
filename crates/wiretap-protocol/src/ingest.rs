@@ -12,14 +12,14 @@
 //!
 //! Message types are grouped by who sends them, not by name: a client sends
 //! `HELLO`, `BATCH`, `PING`, `CATALOG_GET` and `CATALOG_STATUS`; a server
-//! answers `HELLO_ACK`, `ACK`, `PONG` and `CATALOG`.
+//! answers `HELLO_ACK`, `ACK`, `PONG`, `CATALOG` and `CLOSE`.
 //!
 //! Version 2 changed the `BATCH` record in place so it can carry more than a
 //! CAN frame: each record names its [`RecordKind`]. Version 3 added the daemon
 //! id and device map to `HELLO`, catalogue assignments to `HELLO_ACK`, the
-//! catalogue pull and status, and raw serial records. The older layouts are
-//! still parsed, through [`batch_parser`], so a server can take a client that
-//! has not been upgraded yet.
+//! catalogue pull and status, `CLOSE`, and raw serial records. The older
+//! layouts are still parsed, through [`batch_parser`], so a server can take a
+//! client that has not been upgraded yet.
 //!
 //! The id-flag positions differ from GVRET's, which marks an extended id with
 //! the top bit rather than bit 29. Only the id width is common, and it comes
@@ -43,6 +43,7 @@ pub const MSG_HELLO_ACK: u8 = 0x81;
 pub const MSG_ACK: u8 = 0x82;
 pub const MSG_PONG: u8 = 0x83;
 pub const MSG_CATALOG: u8 = 0x84;
+pub const MSG_CLOSE: u8 = 0x85;
 
 pub const HELLO_FLAG_TIME_RELATIVE: u8 = 0x01;
 
@@ -64,6 +65,9 @@ pub const CATALOG_UNKNOWN: u8 = 1;
 pub const CATALOG_UNAVAILABLE: u8 = 2;
 /// The offset is past the end; `total_len` is the blob's.
 pub const CATALOG_BAD_OFFSET: u8 = 3;
+
+/// The session's catalogue assignment changed; reconnect and read the new one.
+pub const CLOSE_REASSIGNED: u8 = 0;
 
 /// The most data one `CATALOG` carries.
 pub const MAX_CATALOG_CHUNK: usize = 65_504;
@@ -1136,6 +1140,25 @@ pub fn parse_catalog_status(body: &[u8]) -> Result<CatalogStatus, String> {
         .collect::<Result<Vec<_>, _>>()?;
     check_buses_unique(&entries)?;
     Ok(CatalogStatus { entries })
+}
+
+// --- the close -------------------------------------------------------------
+
+/// Why the server closed the session; an unknown reason is still a close.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Close {
+    pub reason: u8,
+}
+
+pub fn encode_close(reason: u8) -> Vec<u8> {
+    encode_message(MSG_CLOSE, &[reason])
+}
+
+pub fn parse_close(body: &[u8]) -> Result<Close, String> {
+    let &[reason, ..] = body else {
+        return Err("truncated CLOSE".into());
+    };
+    Ok(Close { reason })
 }
 
 #[cfg(test)]
@@ -2258,6 +2281,28 @@ mod tests {
                 "{entries:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_close_matches_its_golden_bytes_and_round_trips() {
+        let msg = encode_close(CLOSE_REASSIGNED);
+        assert_eq!(msg, unhex("02008500f17e2d07"));
+        assert_eq!(
+            parse_close(&body_of(&msg)),
+            Ok(Close {
+                reason: CLOSE_REASSIGNED
+            })
+        );
+    }
+
+    #[test]
+    fn a_close_with_no_reason_does_not_parse() {
+        assert_eq!(parse_close(&[]), Err("truncated CLOSE".into()));
+    }
+
+    #[test]
+    fn an_unknown_close_reason_parses_and_trailing_bytes_are_ignored() {
+        assert_eq!(parse_close(&[0xEE, 1]), Ok(Close { reason: 0xEE }));
     }
 
     #[test]

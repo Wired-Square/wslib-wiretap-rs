@@ -147,6 +147,10 @@ impl ServerSession {
 
     pub fn poll(&mut self) -> Option<Action> {
         match self.gate {
+            Gate::Open if self.reassigned && self.version().is_some_and(is_v3) => {
+                self.gate = Gate::Closing(CloseReason::Reassigned);
+                return Some(Action::Reply(encode_close(CLOSE_REASSIGNED)));
+            }
             Gate::Open if self.reassigned => return Some(self.close(CloseReason::Reassigned)),
             Gate::Open => {}
             Gate::Closing(reason) => return Some(self.close(reason)),
@@ -238,7 +242,8 @@ impl ServerSession {
     }
 
     /// Close once any owed reply is answered: the session's catalogue
-    /// assignment changed, and a reconnect reads the new one.
+    /// assignment changed, and a reconnect reads the new one. A version 3
+    /// client is sent `CLOSE` first.
     pub fn close_reassigned(&mut self) {
         self.reassigned = true;
     }
@@ -1119,13 +1124,32 @@ mod tests {
     }
 
     #[test]
-    fn a_reassigned_session_closes_once_its_owed_reply_is_written() {
+    fn a_reassigned_v3_session_sends_close_once_its_owed_reply_is_written() {
         let mut s = accepted_v3(gateway());
         s.receive(&[batch(1, 1), batch(2, 1)].concat());
         assert_eq!(incoming(&mut s).batch.seq, 1);
         s.close_reassigned();
         assert!(s.poll().is_none(), "the ACK is owed");
         s.ack(1, ACK_OK, 0);
+        let Some(Action::Reply(mut reply)) = s.poll() else {
+            panic!("expected a CLOSE");
+        };
+        let frame = take_frame(&mut reply).unwrap().unwrap();
+        assert_eq!(frame.mtype, MSG_CLOSE);
+        assert_eq!(
+            parse_close(&frame.body),
+            Ok(Close {
+                reason: CLOSE_REASSIGNED
+            })
+        );
+        assert_eq!(closed(&mut s), CloseReason::Reassigned);
+        assert!(s.poll().is_none());
+    }
+
+    #[test]
+    fn a_reassigned_v2_session_closes_without_a_close() {
+        let mut s = accepted(gateway());
+        s.close_reassigned();
         assert_eq!(closed(&mut s), CloseReason::Reassigned);
         assert!(s.poll().is_none());
     }

@@ -54,6 +54,7 @@ Message types (high bit set = server → client):
 | `0x04` | `CATALOG_GET` | client → server, v3 |
 | `0x84` | `CATALOG`   | server → client, v3 |
 | `0x05` | `CATALOG_STATUS` | client → server, v3, no reply |
+| `0x85` | `CLOSE`     | server → client, v3 |
 
 Unknown message types are ignored by the server (forward compatibility). To a
 v1 or v2 session, `CATALOG_GET` and `CATALOG_STATUS` are.
@@ -322,9 +323,24 @@ would find malformed.
 ## Reassignment (v3)
 
 There is no push. When an administrator changes a daemon's assignment, the
-gateway closes that daemon's session, after the reply it owes; the daemon
-reconnects as after any drop, and the new `HELLO_ACK` carries the new
-assignments. There is no "id in use" or "assignment refused" status in v3.
+gateway closes that daemon's session, after the reply it owes and a `CLOSE`;
+the daemon reconnects as after any drop, and the new `HELLO_ACK` carries the
+new assignments. There is no "id in use" or "assignment refused" status in v3.
+
+## Server close: CLOSE (v3)
+
+The server tells the client why it is closing the connection, then closes it.
+
+`CLOSE` body:
+
+| offset | size | field    | notes                                    |
+|--------|------|----------|------------------------------------------|
+| 0      | 1    | `reason` | 0 = reassigned: the session's catalogue assignment changed; reconnect and read the new one |
+
+A client treats any `CLOSE`, an unknown `reason` included, as the server
+closing deliberately rather than an outage. Bytes after `reason` are ignored.
+Only a version 3 session is sent one; an older client sees the connection
+close.
 
 ## Keepalive: PING / PONG
 
@@ -365,7 +381,8 @@ the connection or gets a malformed `ACK` for seq 0.
   that `HELLO`, daemon id and device map included), and the idle timeout: any
   byte read resets it, and `idle_limit()` hands back the configured limit.
 - **Reassignment is the caller's to trigger.** `close_reassigned()` closes the
-  session with `Close(Reassigned)` once any owed reply is answered.
+  session with `Close(Reassigned)` once any owed reply is answered, after a
+  `Reply` carrying `CLOSE` to a version 3 session.
 
 ## Sizing guidance for clients
 
@@ -407,6 +424,7 @@ named here is the same bytes in both versions.
 - `CATALOG_GET` (`0x04`) and `CATALOG` (`0x84`) are new.
 - `CATALOG_STATUS` (`0x05`) was added later in v3, with no version bump: a v3
   server that predates it ignores it as an unknown type.
+- `CLOSE` (`0x85`) was added later in v3 too, with no version bump.
 - Record kind 2, raw serial, is new; in a v2 batch it stays malformed.
 
 **Upgrade order is gateway first, then capture daemons.** The gateway takes

@@ -258,6 +258,13 @@ archive; exact-once is deliberately not attempted. Sequence numbers only
 correlate ACKs to batches — they need not be contiguous and the server does
 not deduplicate.
 
+**Pipelining.** A client may send several batches before their ACKs, and the
+gateway stores them one at a time, in order. Match each ACK to its batch by
+seq, never by position: a batch whose CRC fails with a body under 4 bytes has
+no seq to echo and gets no ACK, so it is caught only by the timeout. Never use
+seq 0: a batch too short to carry its header is answered, when the server
+answers it at all, with a malformed ACK for seq 0.
+
 ## Catalogue pull: CATALOG_GET / CATALOG (v3)
 
 A daemon fetches a catalogue blob it doesn't hold by the SHA-1 a `HELLO_ACK`

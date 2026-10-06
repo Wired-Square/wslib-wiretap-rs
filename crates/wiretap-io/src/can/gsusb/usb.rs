@@ -59,7 +59,7 @@ const CONTROL_TIMEOUT: Duration = Duration::from_secs(1);
 /// The reset a drop sends, blocking.
 const DROP_TIMEOUT: Duration = Duration::from_millis(100);
 const WRITE_TIMEOUT: Duration = Duration::from_secs(1);
-const IN_FLIGHT: usize = 4;
+const IN_FLIGHT: usize = 30;
 
 struct GsUsb {
     control: OnBus<Interface>,

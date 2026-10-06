@@ -103,6 +103,16 @@ impl Port {
         self.written().await
     }
 
+    /// A second handle on the idle port, for a write that can't wait for a read.
+    /// It shares the port's settings, so it must not change them.
+    #[cfg(feature = "serial-write")]
+    pub(crate) fn try_clone(&self) -> io::Result<Box<dyn io::Write + Send>> {
+        let State::Idle(port) = &self.state else {
+            return Err(io::ErrorKind::NotConnected.into());
+        };
+        Ok(port.try_clone()?)
+    }
+
     pub(crate) async fn close(self) {
         match self.state {
             State::Reading(handle) => {

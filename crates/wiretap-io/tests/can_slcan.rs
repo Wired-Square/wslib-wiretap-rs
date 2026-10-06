@@ -524,6 +524,43 @@ mod pty {
         .await
     }
 
+    /// The task gets a runtime of its own, so dropping it leaves the device's.
+    #[tokio::test]
+    async fn a_runtime_shut_down_without_stop_still_closes_the_slcan_channel() {
+        within(async {
+            let device = FakeSlcan::start(Behaviour::default());
+            let options = device.options();
+            let opened = std::thread::spawn(move || {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap();
+                let task = runtime.block_on(async {
+                    let mut task = open(options, false).await;
+                    connected(&mut task).await;
+                    task
+                });
+                drop(runtime);
+                task
+            });
+            device.until_received(&format!("{START}C\r")).await;
+            drop(opened);
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn a_stopped_task_closes_the_channel_once() {
+        within(async {
+            let device = FakeSlcan::start(Behaviour::default());
+            let mut task = open(device.options(), false).await;
+            connected(&mut task).await;
+            task.stop().await;
+            sent_only(&device, &format!("{START}C\r")).await;
+        })
+        .await
+    }
+
     const PROBE: Duration = Duration::from_secs(2);
 
     async fn probe(device: &FakeSlcan, timeout: Duration) -> Result<DeviceInfo, CanError> {

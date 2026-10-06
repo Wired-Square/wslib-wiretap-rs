@@ -5,7 +5,11 @@
 //! counts silence as taken, since not every firmware answers; a probe needs an
 //! answer to `V`, `v` or `N`.
 
-use std::{io, mem, time::Duration};
+use std::{
+    io::{self, Write},
+    mem,
+    time::Duration,
+};
 
 use tokio::time::{timeout, timeout_at, Instant};
 use wiretap_protocol::{
@@ -86,6 +90,7 @@ struct Slcan {
     /// Read past a command's answer, for the next answer or the first read.
     unread: Vec<u8>,
     fd: bool,
+    on_bus: Option<OnBus>,
 }
 
 enum Answer {
@@ -128,10 +133,15 @@ impl Device for Slcan {
             .map(|bps| Ok((bps, command(bps, data_bitrate_command, &DATA_BITRATES)?)))
             .transpose()?;
         let port = port::open(&config.path, config.line)?;
+        let second = port.try_clone().ok();
         let mut slcan = Self::new(port, data_bitrate.is_some());
         let info = slcan
             .start(config.bitrate, bitrate, data_bitrate, options.listen_only)
             .await?;
+        slcan.on_bus = second.map(|port| OnBus {
+            port,
+            closed: false,
+        });
         Ok((slcan, info))
     }
 
@@ -179,7 +189,25 @@ impl Device for Slcan {
     async fn close(mut self) {
         self.outbound.extend_from_slice(CLOSE.as_bytes());
         let _ = timeout(CLOSE_TIMEOUT, self.port.write(&mut self.outbound)).await;
+        if let Some(on_bus) = &mut self.on_bus {
+            on_bus.closed = true;
+        }
         self.port.close().await;
+    }
+}
+
+/// An open channel's second handle on its port. Dropped before `close`, as when
+/// the runtime shuts down around its task, it closes the channel itself.
+struct OnBus {
+    port: Box<dyn Write + Send>,
+    closed: bool,
+}
+
+impl Drop for OnBus {
+    fn drop(&mut self) {
+        if !self.closed {
+            let _ = self.port.write_all(CLOSE.as_bytes());
+        }
     }
 }
 
@@ -192,6 +220,7 @@ impl Slcan {
             outbound: Vec::new(),
             unread: Vec::new(),
             fd,
+            on_bus: None,
         }
     }
 

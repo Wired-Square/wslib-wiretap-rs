@@ -239,7 +239,9 @@ echo, so the send queue backs up meanwhile, and past that it fails `TimedOut`
 and the ten are taken as lost. A transmit timeout, the firmware flushing its
 queue, frees them all at once, its `Bus` counting them in `tx_dropped`. Any
 bulk-IN error is `Closed`. `stop`, and every loss, resets the channel first,
-bounded by 1 s. Windows compiles and is untested at runtime.
+bounded by 1 s. Windows compiles and is untested at runtime. There nusb opens
+only an adapter bound to WinUSB: one bound to another driver is `Open` with
+`Unsupported`, naming the driver and saying to bind WinUSB to it.
 
 `gsusb::probe` claims the adapter as `open` does, and within its one `timeout`
 reads `DEVICE_CONFIG` and channel 0's `BT_CONST`, then releases it. It sends no
@@ -276,7 +278,10 @@ reopen, and an erased serial (`FFFFFFFF`) reads as none and matches nothing.
 What the model hasn't got is `Config` before the claim: `data` or a `channel`
 past 0 on the classic adapter, a `channel` past the model's on an FD one. So is
 a bitrate the clock can't time within 5%, the sample point being CiA's unless
-given, as the kernel's `can_calc_bittiming` has it.
+given, as the kernel's `can_calc_bittiming` has it. On Windows nusb opens only
+an adapter bound to WinUSB: one bound to another driver is `Open` with
+`Unsupported`, naming the driver and saying to install PEAK-Drivers or bind
+WinUSB.
 
 On the classic PCAN-USB `open` claims interface 0 and runs the kernel driver's
 start: `SN`, bus off and the controller reset, `BITRATE`, `ERR_FR`, silent mode

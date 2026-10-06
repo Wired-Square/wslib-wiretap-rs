@@ -14,7 +14,7 @@ use super::{identify, start, Control, Frames, GsUsbDevice, GsUsbOptions, OnBus, 
 use crate::can::{
     clock::Received,
     task::{self, Device},
-    usb::bus,
+    usb::{bound_driver, bus, foreign_driver},
     writer::Limits,
     BusState, CanError, CanFrame, CanOptions, CanTask, DeviceInfo,
 };
@@ -218,7 +218,14 @@ async fn claim(device: &GsUsbDevice) -> io::Result<(Interface, Option<String>)> 
             _ => bus(found) == device.bus && found.device_address() == device.address,
         })
         .ok_or(io::ErrorKind::NotFound)?;
-    let interface = found.open().await?.claim_interface(0).await?;
+    let claimed = async { found.open().await?.claim_interface(0).await };
+    let interface = claimed.await.map_err(|e| {
+        foreign_driver(
+            e.into(),
+            bound_driver(&found),
+            "bind WinUSB to it, as with Zadig",
+        )
+    })?;
     Ok((interface, found.serial_number().map(str::to_owned)))
 }
 

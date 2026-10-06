@@ -575,6 +575,14 @@ impl Claim for UcanClaim {
     }
 }
 
+async fn attach<C: Claim>(found: &UsbDevice) -> io::Result<C> {
+    use crate::can::usb::{bound_driver, foreign_driver};
+    let remedy = "install PEAK-Drivers, or bind WinUSB to it";
+    C::attach(found)
+        .await
+        .map_err(|e| foreign_driver(e, bound_driver(found), remedy))
+}
+
 /// Among the selector's model, by serial number where the selector has one —
 /// the USB string first, then each adapter's own — else by bus and address.
 async fn claim<C: Claim>(device: &PcanDevice) -> io::Result<C> {
@@ -587,13 +595,13 @@ async fn claim<C: Claim>(device: &PcanDevice) -> io::Result<C> {
             .iter()
             .find(|found| bus(found) == device.bus && found.device_address() == device.address)
             .ok_or(io::ErrorKind::NotFound)?;
-        return C::attach(found).await;
+        return attach(found).await;
     };
     if let Some(found) = adapters
         .iter()
         .find(|found| found.serial_number() == Some(wanted))
     {
-        return C::attach(found).await;
+        return attach(found).await;
     }
     for found in &adapters {
         let Ok(mut claimed) = C::attach(found).await else {

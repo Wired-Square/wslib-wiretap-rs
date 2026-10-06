@@ -44,7 +44,8 @@ pub struct Bitrates {
 }
 
 /// Opens the socket now, on the caller's task, then spawns the task that reads
-/// it. Panics outside a tokio runtime.
+/// it, which `wait_for_device` leaves a missing interface to. Panics outside a
+/// tokio runtime.
 pub async fn open(sc: SocketCanOptions, options: CanOptions) -> Result<CanTask, CanError> {
     let config = Config {
         sc,
@@ -111,6 +112,10 @@ impl Device for SocketCan {
             ..DeviceInfo::default()
         };
         Ok((device, info))
+    }
+
+    fn absent(error: &CanError) -> bool {
+        matches!(error, CanError::Open { source, .. } if source.raw_os_error() == Some(libc::ENODEV))
     }
 
     fn limits(&self) -> Limits {
@@ -318,6 +323,17 @@ mod tests {
         assert_eq!(&bytes[..len], b"frame");
         assert!(at >= before - Duration::from_millis(1) && at <= SystemTime::now());
         assert!(!own);
+    }
+
+    #[test]
+    fn only_a_missing_interface_is_absent() {
+        let open = |errno| CanError::Open {
+            device: "can0".into(),
+            source: io::Error::from_raw_os_error(errno),
+        };
+        assert!(SocketCan::absent(&open(libc::ENODEV)));
+        assert!(!SocketCan::absent(&open(libc::EACCES)));
+        assert!(!SocketCan::absent(&CanError::Closed));
     }
 
     #[test]

@@ -106,6 +106,9 @@ pub struct CanOptions {
     /// The wait before each reopen after a loss; `None` ends the task on the
     /// first loss.
     pub reopen: Option<Duration>,
+    /// A device that isn't there at open is waited for, as after a loss,
+    /// rather than returned; needs `reopen`.
+    pub wait_for_device: bool,
     /// The event queue's bound. When it is full the task waits for the
     /// consumer, and still serves sends.
     pub events: usize,
@@ -119,6 +122,7 @@ impl Default for CanOptions {
             own_frames: false,
             time: TimeMapping::default(),
             reopen: Some(Duration::from_secs(1)),
+            wait_for_device: false,
             events: 64,
             writes: 32,
         }
@@ -144,12 +148,14 @@ pub struct DeviceInfo {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum CanEvent {
-    /// The first event, and the first after every reopen.
+    /// The first event once the device is open, and the first after every
+    /// reopen.
     Connected(DeviceInfo),
     /// One read's frames, in order, never empty.
     Read(Vec<CanRead>),
-    /// `consecutive` counts failures since the last `Connected`, the loss that
-    /// ended it included. With `retry_in: None` this is the last event.
+    /// `consecutive` counts failures since the last `Connected` or the start,
+    /// the loss that ended it included. With `retry_in: None` this is the last
+    /// event.
     Disconnected {
         error: CanError,
         consecutive: u32,
@@ -233,6 +239,7 @@ mod tests {
             }
         );
         assert_eq!(options.reopen, Some(Duration::from_secs(1)));
+        assert!(!options.wait_for_device);
         assert_eq!(options.events, 64);
         assert_eq!(options.writes, 32);
     }

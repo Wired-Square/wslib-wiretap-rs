@@ -59,6 +59,15 @@ pub(crate) struct Limits {
 }
 
 impl Limits {
+    /// Refuses only what no device could send, so a send with none is
+    /// answered `Disconnected`.
+    pub const ANY: Self = Self {
+        fd: true,
+        brs: true,
+        rtr: true,
+        buses: None,
+    };
+
     /// A length is checked before a flag: GVRET has no FD flag, so what it
     /// can't carry is the length.
     fn check(&self, frame: &CanFrame) -> Result<(), Unsupported> {

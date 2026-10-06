@@ -31,6 +31,11 @@ pub(crate) trait Device: Sized + Send + 'static {
 
     fn limits(&self) -> Limits;
 
+    /// An open's error that says the device isn't there, for `wait_for_device`.
+    fn absent(_: &CanError) -> bool {
+        false
+    }
+
     /// Cancel-safe. May return no frames.
     fn read(&mut self) -> impl Future<Output = Result<Vec<Received>, CanError>> + Send;
 
@@ -59,7 +64,8 @@ pub struct CanTask {
 }
 
 /// Opens the device now, on the caller's task, then spawns the task that reads
-/// it. Panics outside a tokio runtime.
+/// it, which `wait_for_device` leaves an absent device to. Panics outside a
+/// tokio runtime.
 #[cfg_attr(
     not(any(
         feature = "can-gvret",
@@ -79,8 +85,15 @@ pub(crate) async fn open<D: Device>(
     config: D::Config,
     options: CanOptions,
 ) -> Result<CanTask, CanError> {
-    let (device, info) = D::open(&config, &options).await?;
-    let limits = Arc::new(Mutex::new(device.limits()));
+    let waits = options.wait_for_device && options.reopen.is_some();
+    let first = match D::open(&config, &options).await {
+        Err(error) if !(waits && D::absent(&error)) => return Err(error),
+        first => first,
+    };
+    let limits = first
+        .as_ref()
+        .map_or(Limits::ANY, |(device, _)| device.limits());
+    let limits = Arc::new(Mutex::new(limits));
     let (events, event_rx) = mpsc::channel(options.events.max(1));
     let (jobs, job_rx) = mpsc::channel(options.writes.max(1));
     let writer = CanWriter::new(jobs, options.listen_only, limits.clone());
@@ -96,7 +109,7 @@ pub(crate) async fn open<D: Device>(
     Ok(CanTask {
         events: event_rx,
         writer,
-        handle: tokio::spawn(task.run(device, info)),
+        handle: tokio::spawn(task.run(first)),
     })
 }
 
@@ -146,8 +159,12 @@ struct Task<D: Device> {
 }
 
 impl<D: Device> Task<D> {
-    async fn run(mut self, mut device: D, mut info: DeviceInfo) {
-        loop {
+    async fn run(mut self, first: Result<(D, DeviceInfo), CanError>) {
+        let mut opened = match first {
+            Ok(opened) => Some(opened),
+            Err(error) => self.reopen(error).await,
+        };
+        while let Some((mut device, info)) = opened {
             *self.limits.lock().unwrap_or_else(|e| e.into_inner()) = device.limits();
             self.clock.reset();
             let loss = if self
@@ -160,10 +177,7 @@ impl<D: Device> Task<D> {
             };
             device.close().await;
             let Some(error) = loss else { return };
-            let Some(reopened) = self.reopen(error).await else {
-                return;
-            };
-            (device, info) = reopened;
+            opened = self.reopen(error).await;
         }
     }
 
@@ -340,6 +354,10 @@ mod tests {
             LIMITS
         }
 
+        fn absent(error: &CanError) -> bool {
+            matches!(error, CanError::Open { source, .. } if source.kind() == io::ErrorKind::NotFound)
+        }
+
         async fn read(&mut self) -> Result<Vec<Received>, CanError> {
             let reads = self.reads.as_mut().expect("one device open at a time");
             let script = match reads.recv().await {
@@ -382,6 +400,13 @@ mod tests {
         CanOptions {
             reopen,
             ..CanOptions::default()
+        }
+    }
+
+    fn waiting(reopen: Duration) -> CanOptions {
+        CanOptions {
+            wait_for_device: true,
+            ..options(Some(reopen))
         }
     }
 
@@ -467,12 +492,68 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_failed_open_is_the_callers_error() {
+    async fn a_failed_open_is_the_callers_error_unless_an_absent_device_is_waited_for() {
+        let refused = CanError::Open {
+            device: "fake".into(),
+            source: io::ErrorKind::PermissionDenied.into(),
+        };
+        let unwaited = CanOptions {
+            wait_for_device: true,
+            ..options(None)
+        };
+        for (error, options) in [
+            (gone(), options(Some(Duration::from_millis(1)))),
+            (gone(), unwaited),
+            (refused, waiting(Duration::from_millis(1))),
+        ] {
+            let (rig, _script) = rig(vec![Err(error)]);
+            assert!(matches!(
+                open::<Fake>(rig, options).await,
+                Err(CanError::Open { .. })
+            ));
+        }
+    }
+
+    #[tokio::test]
+    async fn an_absent_device_waited_for_is_a_disconnect_that_refuses_sends_disconnected() {
         let (rig, _script) = rig(vec![Err(gone())]);
+        let mut task = open::<Fake>(rig, waiting(Duration::from_secs(60)))
+            .await
+            .unwrap();
+        let CanEvent::Disconnected {
+            error,
+            consecutive,
+            retry_in,
+        } = next(&mut task).await
+        else {
+            panic!("a disconnect");
+        };
+        assert!(matches!(error, CanError::Open { .. }));
+        assert_eq!((consecutive, retry_in), (1, Some(Duration::from_secs(60))));
+        let off_the_device = CanFrame::data(5, 1, false, false, false, vec![]);
+        let refused = task.writer().send(off_the_device).await.unwrap_err();
+        assert_eq!(refused, SendRefused::Disconnected);
+    }
+
+    #[tokio::test]
+    async fn an_absent_device_waited_for_connects_once_it_opens_and_takes_its_limits() {
+        let (rig, script) = rig(vec![Err(gone())]);
+        let mut task = open::<Fake>(rig.clone(), waiting(Duration::from_millis(1)))
+            .await
+            .unwrap();
         assert!(matches!(
-            open::<Fake>(rig, options(None)).await,
-            Err(CanError::Open { .. })
+            next(&mut task).await,
+            CanEvent::Disconnected { consecutive: 1, .. }
         ));
+        assert!(matches!(next(&mut task).await, CanEvent::Connected(_)));
+        script.send(Ok(vec![received(1, Direction::Rx)])).unwrap();
+        assert!(matches!(next(&mut task).await, CanEvent::Read(_)));
+        let writer = task.writer();
+        assert!(writer.send(frame(0x42)).await.unwrap().is_ok());
+        assert_eq!(*rig.written.lock().unwrap(), [frame(0x42)]);
+        let off_the_device = CanFrame::data(5, 1, false, false, false, vec![]);
+        let refused = writer.send(off_the_device).await.unwrap_err();
+        assert_eq!(refused, SendRefused::Unsupported(Unsupported::Bus(5)));
     }
 
     #[tokio::test]

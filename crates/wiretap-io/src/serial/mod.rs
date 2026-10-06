@@ -56,6 +56,9 @@ pub struct SerialOptions {
     /// The wait before each reopen after a loss; `None` ends the task on the
     /// first loss.
     pub reopen: Option<Duration>,
+    /// A port that isn't there at open is waited for, as after a loss, rather
+    /// than returned; needs `reopen`.
+    pub wait_for_device: bool,
     /// The event queue's bound. When it is full the task waits for the
     /// consumer, and still serves writes.
     pub events: usize,
@@ -70,6 +73,7 @@ impl Default for SerialOptions {
             exclusive: true,
             read_buffer: 4096,
             reopen: Some(Duration::from_secs(1)),
+            wait_for_device: false,
             events: 64,
             writes: 8,
         }
@@ -78,12 +82,14 @@ impl Default for SerialOptions {
 
 #[derive(Debug)]
 pub enum SerialEvent {
-    /// The first event, and the first after every reopen.
+    /// The first event once the port is open, and the first after every
+    /// reopen.
     Connected,
     /// One read's bytes, never empty, and the wall clock when the read returned.
     Read { bytes: Vec<u8>, at: SystemTime },
-    /// `consecutive` counts failures since the last `Connected`, the loss that
-    /// ended it included. With `retry_in: None` this is the last event.
+    /// `consecutive` counts failures since the last `Connected` or the start,
+    /// the loss that ended it included. With `retry_in: None` this is the last
+    /// event.
     Disconnected {
         error: SerialError,
         consecutive: u32,
@@ -118,14 +124,19 @@ pub struct SerialTask {
 }
 
 /// Opens the port now, on the caller's task, then spawns the task that reads
-/// it. Panics outside a tokio runtime.
+/// it, which `wait_for_device` leaves a missing port to. Panics outside a
+/// tokio runtime.
 pub fn open(
     path: impl Into<String>,
     line: LineSettings,
     options: SerialOptions,
 ) -> Result<SerialTask, SerialError> {
     let path = path.into();
-    let port = Port::open(&path, line, &options)?;
+    let waits = options.wait_for_device && options.reopen.is_some();
+    let first = match Port::open(&path, line, &options) {
+        Err(error) if !(waits && error.absent()) => return Err(error),
+        first => first,
+    };
     let (events, event_rx) = mpsc::channel(options.events.max(1));
     let (jobs, job_rx) = mpsc::channel(options.writes.max(1));
     let writable = options.access != Access::ReadOnly;
@@ -140,7 +151,7 @@ pub fn open(
     Ok(SerialTask {
         events: event_rx,
         jobs: writable.then_some(jobs),
-        handle: tokio::spawn(task.run(port)),
+        handle: tokio::spawn(task.run(first)),
     })
 }
 
@@ -166,6 +177,20 @@ impl SerialTask {
 impl Drop for SerialTask {
     fn drop(&mut self) {
         self.handle.abort();
+    }
+}
+
+impl SerialError {
+    /// ENOENT or ENODEV: no port at the path.
+    fn absent(&self) -> bool {
+        let Self::Open { source, .. } = self else {
+            return false;
+        };
+        #[cfg(unix)]
+        if source.raw_os_error() == Some(nix::libc::ENODEV) {
+            return true;
+        }
+        source.kind() == io::ErrorKind::NotFound
     }
 }
 
@@ -242,8 +267,12 @@ struct Task {
 }
 
 impl Task {
-    async fn run(mut self, mut port: Port) {
-        loop {
+    async fn run(mut self, first: Result<Port, SerialError>) {
+        let mut opened = match first {
+            Ok(port) => Some(port),
+            Err(error) => self.reopen(error).await,
+        };
+        while let Some(mut port) = opened {
             let loss = if self.emit(SerialEvent::Connected, Some(&mut port)).await {
                 self.read_until_lost(&mut port).await
             } else {
@@ -251,10 +280,7 @@ impl Task {
             };
             port.close().await;
             let Some(error) = loss else { return };
-            let Some(reopened) = self.reopen(error).await else {
-                return;
-            };
-            port = reopened;
+            opened = self.reopen(error).await;
         }
     }
 
@@ -356,8 +382,22 @@ mod tests {
         assert!(options.exclusive);
         assert_eq!(options.read_buffer, 4096);
         assert_eq!(options.reopen, Some(Duration::from_secs(1)));
+        assert!(!options.wait_for_device);
         assert_eq!(options.events, 64);
         assert_eq!(options.writes, 8);
+    }
+
+    #[test]
+    fn only_a_missing_port_is_absent() {
+        let open = |source| SerialError::Open {
+            path: "/dev/ttyUSB0".into(),
+            source,
+        };
+        assert!(open(io::ErrorKind::NotFound.into()).absent());
+        #[cfg(unix)]
+        assert!(open(io::Error::from_raw_os_error(nix::libc::ENODEV)).absent());
+        assert!(!open(io::ErrorKind::PermissionDenied.into()).absent());
+        assert!(!SerialError::Closed.absent());
     }
 
     #[test]

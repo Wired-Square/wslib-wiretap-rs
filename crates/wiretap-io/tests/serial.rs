@@ -170,17 +170,102 @@ async fn a_read_is_at_most_read_buffer_long() {
     within(task.stop()).await;
 }
 
-#[tokio::test]
-async fn a_missing_path_fails_the_first_open_at_the_caller() {
-    let missing = "/nonexistent/wiretap-serial";
-    match open(missing, LINE, quick()) {
-        Err(SerialError::Open { path, source }) => {
-            assert_eq!(path, missing);
-            assert_eq!(source.kind(), ErrorKind::NotFound);
-        }
-        Err(other) => panic!("{other:?}"),
-        Ok(_) => panic!("opened a missing path"),
+fn waiting() -> SerialOptions {
+    SerialOptions {
+        wait_for_device: true,
+        ..quick()
     }
+}
+
+#[tokio::test]
+async fn a_missing_path_fails_the_first_open_at_the_caller_unless_waited_for() {
+    let missing = "/nonexistent/wiretap-serial";
+    let unwaited = SerialOptions {
+        reopen: None,
+        ..waiting()
+    };
+    for options in [quick(), unwaited] {
+        match open(missing, LINE, options) {
+            Err(SerialError::Open { path, source }) => {
+                assert_eq!(path, missing);
+                assert_eq!(source.kind(), ErrorKind::NotFound);
+            }
+            Err(other) => panic!("{other:?}"),
+            Ok(_) => panic!("opened a missing path"),
+        }
+    }
+}
+
+#[tokio::test]
+async fn waiting_returns_every_failure_but_a_missing_path_at_once() {
+    let bad = LineSettings {
+        data_bits: 9,
+        ..LINE
+    };
+    let refused = open("/nonexistent/wiretap-serial", bad, waiting());
+    assert!(matches!(refused, Err(SerialError::InvalidSettings(l)) if l == bad));
+    let not_a_port = open(path(&std::env::temp_dir()), LINE, waiting());
+    assert!(matches!(not_a_port, Err(SerialError::Open { .. })));
+}
+
+#[tokio::test]
+async fn a_missing_path_waited_for_is_a_disconnect_until_it_appears() {
+    let dir = std::env::temp_dir().join(format!("wiretap-serial-wait-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let link = dir.join("tty");
+    let _ = std::fs::remove_file(&link);
+
+    let mut task = open(path(&link), LINE, waiting()).expect("open");
+    match next(&mut task).await {
+        SerialEvent::Disconnected {
+            error: SerialError::Open { source, .. },
+            consecutive: 1,
+            retry_in: Some(_),
+        } => assert_eq!(source.kind(), ErrorKind::NotFound),
+        other => panic!("{other:?}"),
+    }
+
+    let mut pty = Pty::new();
+    symlink(&pty.slave, &link).expect("symlink");
+    loop {
+        match next(&mut task).await {
+            SerialEvent::Connected => break,
+            SerialEvent::Disconnected {
+                error: SerialError::Open { .. },
+                ..
+            } => {}
+            other => panic!("{other:?}"),
+        }
+    }
+    pty.send(b"here");
+    assert_eq!(read_exactly(&mut task, 4).await, b"here");
+
+    within(task.stop()).await;
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[cfg(feature = "serial-write")]
+#[tokio::test]
+async fn a_missing_path_waited_for_refuses_writes_disconnected() {
+    use wiretap_io::serial::{Access, WriteRefused};
+
+    let options = SerialOptions {
+        access: Access::ReadWrite,
+        reopen: Some(Duration::from_secs(60)),
+        ..waiting()
+    };
+    let mut task = open("/nonexistent/wiretap-serial", LINE, options).expect("open");
+    let event = next(&mut task).await;
+    assert!(
+        matches!(event, SerialEvent::Disconnected { consecutive: 1, .. }),
+        "{event:?}"
+    );
+    let refused = within(task.writer().write(b"x".to_vec())).await;
+    assert!(
+        matches!(refused, Err(WriteRefused::Disconnected)),
+        "{refused:?}"
+    );
+    within(task.stop()).await;
 }
 
 #[tokio::test]

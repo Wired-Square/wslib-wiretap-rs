@@ -12,7 +12,7 @@ an app compiles only the ones it uses.
 | `modbus-write` | its write methods: `write_registers` (FC06/16), `write_coils` (FC05/15) and `write_verified`, the batch write-verify of catalogue `ModbusWrite`s: a holding run read-modify-written and read back by FC03, a coil run written whole and read back by FC01. Implies `modbus-tcp` |
 | `modbus-task` | `modbus::spawn`: one task per connection that owns it and a `Poller`, emits each step as a batch of events, and reconnects with backoff. With `modbus-write` as well, a `PollWriter` sends writes over that task's connection. Implies `modbus-tcp` |
 | `testing` | `modbus::testing::device`: a Modbus TCP device on loopback for a consumer's tests, answering each request with a closure, and `registers`, the answer that holds each register at its own address. Implies `modbus-tcp`; for dev-dependencies |
-| `serial` | `serial::open`: a read-only serial port. It opens the path at once, so a missing adapter is the caller's error, then spawns a task that emits each read's bytes with the wall clock it returned at, and reopens the line every second after a loss (or ends, with `reopen: None`) |
+| `serial` | `serial::open`: a read-only serial port. It opens the path at once, so a missing adapter is the caller's error unless `wait_for_device` leaves it to the task, then spawns a task that emits each read's bytes with the wall clock it returned at, and reopens the line every second after a loss (or ends, with `reopen: None`) |
 | `serial-ports` | `serial::ports`: every port the OS lists, as a `PortInfo` with its path and, for a USB port, the VID, PID, serial number, manufacturer and product. Implies `serial` |
 | `serial-write` | `Access::ReadWrite`, and a `SerialWriter` whose writes the task serves between reads, and while it waits on a full event queue. Implies `serial-ports` |
 | `can` | what every CAN transport shares: `can::CanFrame`, `CanRead` and its stamp, `CanOptions`, the `CanEvent`s a `CanTask` emits, and a `CanWriter` whose sends it serves between reads. Each transport is its own `can-*` feature, implying this one |
@@ -351,10 +351,11 @@ interface. A deleted interface (`ENODEV`, `ENXIO`) is `Closed`, and the reopen
 binds a new socket by name, so an adapter that comes back under the same name,
 brought up, is found again under its new index. Any other read error, such as
 `ENETDOWN` from `ip link set down`, is `Read`, and the reopen retries the same
-socket. Bringing an interface up and setting its bitrate need `CAP_NET_ADMIN`,
-and stay the consumer's; `bitrates` reads the rates in one netlink round trip,
-`None` where the interface reports none (as `vcan` does), and a netlink failure
-is `Err`.
+socket. With `wait_for_device`, an interface missing at open (`ENODEV`) is
+waited for as after a loss. Bringing an interface up and setting its bitrate
+need `CAP_NET_ADMIN`, and stay the consumer's; `bitrates` reads the rates in one
+netlink round trip, `None` where the interface reports none (as `vcan` does),
+and a netlink failure is `Err`.
 
 ```rust
 use wiretap_io::can::{socketcan::{self, SocketCanOptions}, CanOptions};

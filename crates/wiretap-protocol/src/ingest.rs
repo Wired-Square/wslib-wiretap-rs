@@ -24,7 +24,7 @@
 //! The id-flag positions differ from GVRET's, which marks an extended id with
 //! the top bit rather than bit 29. Only the id width is common, and it comes
 //! from [`crate::ARB_MASK_EXT`] so the two cannot drift. The WireTAP desktop's
-//! HTTP import record packs its id the same way; it is [`crate::import`].
+//! HTTP import record packs its id and flags the same way; it is [`crate::import`].
 
 use crate::can::{CanFlags, CanFrame};
 use crate::crc32::crc32;

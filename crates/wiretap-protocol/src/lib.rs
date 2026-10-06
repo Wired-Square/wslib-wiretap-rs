@@ -33,8 +33,8 @@
 //! - [`ingest`] — the binary ingest protocol, both ends: framing, handshake,
 //!   batches of CAN, Modbus and raw serial records, their id-flag layout, and
 //!   the catalogue pull, plus the server's session as a sans-io state machine.
-//! - [`import`] — the WireTAP desktop's HTTP capture-import record, both ends.
-//!   CAN only, with the ingest id-flag layout.
+//! - [`import`] — the WireTAP desktop's HTTP capture-import body, both ends:
+//!   a versioned header, then CAN records with the ingest CAN record's words.
 //! - [`candump`] — can-utils' `candump -L` log line, and the `cansend` frame
 //!   inside it.
 //! - [`savvycan`] — the SavvyCAN/GVRET CSV capture file, in the file's shape.

@@ -51,7 +51,8 @@ what the protocol is and what part of it this crate implements.
   WireTAP-Server's gateway and capture daemon drive it; their tokio drivers
   stay there
 - **`import`** ([docs](docs/import.md)) — the WireTAP desktop's HTTP
-  capture-import record, both ends: CAN only, with the ingest id-flag layout
+  capture-import body, both ends: a versioned header, then CAN records with
+  the ingest CAN record's `id_flags` and `flags`
 - **`candump`** ([docs](docs/candump.md)) — can-utils' `candump -L` log line,
   with `-x`'s direction, and the `cansend` frame inside it: a line written from
   a `CanFrame`, and parsed back with every flag and its absolute time

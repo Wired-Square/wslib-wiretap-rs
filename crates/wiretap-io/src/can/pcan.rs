@@ -178,6 +178,9 @@ trait Commands {
     fn send(&mut self, command: Command) -> impl Future<Output = io::Result<()>> + Send;
 
     fn get(&mut self, function: u8) -> impl Future<Output = io::Result<[u8; ARGS_BYTES]>> + Send;
+
+    /// Blocking, for a drop: no runtime may be left to wait in.
+    fn send_now(&mut self, command: Command) -> io::Result<()>;
 }
 
 const STARTUP: Duration = Duration::from_millis(10);
@@ -237,6 +240,37 @@ async fn restart(usb: &mut impl Commands) -> io::Result<()> {
 async fn stop(usb: &mut impl Commands) {
     for (_, command) in bus_off() {
         let _ = usb.send(command).await;
+    }
+}
+
+/// A started channel's command pipe. Dropped before `stop`, as when the runtime
+/// shuts down around its task, it takes the bus off itself.
+struct OnBus<C: Commands> {
+    usb: C,
+    stopped: bool,
+}
+
+impl<C: Commands> OnBus<C> {
+    fn new(usb: C) -> Self {
+        Self {
+            usb,
+            stopped: false,
+        }
+    }
+
+    async fn stop(mut self) {
+        stop(&mut self.usb).await;
+        self.stopped = true;
+    }
+}
+
+impl<C: Commands> Drop for OnBus<C> {
+    fn drop(&mut self) {
+        if !self.stopped {
+            for (_, command) in bus_off() {
+                let _ = self.usb.send_now(command);
+            }
+        }
     }
 }
 
@@ -475,6 +509,10 @@ mod tests {
                 args[..4].copy_from_slice(&sn.to_le_bytes());
             }
             Ok(args)
+        }
+
+        fn send_now(&mut self, _: Command) -> io::Result<()> {
+            unreachable!("only a drop sends now")
         }
     }
 
@@ -884,12 +922,17 @@ mod tests {
         async fn get(&mut self, _: u8) -> io::Result<[u8; ARGS_BYTES]> {
             unreachable!("only a start reads")
         }
+
+        fn send_now(&mut self, command: Command) -> io::Result<()> {
+            self.commands.lock().unwrap().push(command.to_bytes());
+            Ok(())
+        }
     }
 
     /// The classic `Device`'s glue over a scripted bulk-IN and a logged command pipe.
     struct Rigged {
         messages: Option<mpsc::UnboundedReceiver<Script>>,
-        bench: Arc<Bench>,
+        commands: OnBus<Arc<Bench>>,
         ticks: Ticks,
         bus: BusWatch,
     }
@@ -902,7 +945,7 @@ mod tests {
             bus.restart_after = bench.restart_after;
             let rigged = Self {
                 messages: bench.messages.lock().unwrap().take(),
-                bench: bench.clone(),
+                commands: OnBus::new(bench.clone()),
                 ticks: Ticks::default(),
                 bus,
             };
@@ -943,11 +986,12 @@ mod tests {
         }
 
         async fn recover(&mut self) {
-            self.bus.recover(restart(&mut self.bench)).await;
+            self.bus.recover(restart(&mut self.commands.usb)).await;
         }
 
         async fn close(self) {
-            *self.bench.messages.lock().unwrap() = self.messages;
+            *self.commands.usb.messages.lock().unwrap() = self.messages;
+            self.commands.stop().await;
         }
     }
 
@@ -1020,6 +1064,40 @@ mod tests {
             .send(Ok(message(&[&error(error_flags::BUS_LIGHT)])))
             .unwrap();
         assert_eq!(next_bus(&mut task).await.state, ErrorState::Warning);
-        assert!(bench.commands.lock().unwrap().is_empty());
+        assert_eq!(*bench.commands.lock().unwrap(), bus_off_commands());
+    }
+
+    fn bus_off_commands() -> Vec<[u8; COMMAND_BYTES]> {
+        bus_off().map(|(_, command)| command.to_bytes()).to_vec()
+    }
+
+    #[tokio::test]
+    async fn a_stopped_channel_is_taken_off_the_bus_once() {
+        let (bench, _script) = bench(Duration::from_secs(60));
+        let mut task = task::open::<Rigged>(bench.clone(), CanOptions::default())
+            .await
+            .unwrap();
+        next(&mut task).await;
+        task.stop().await;
+        assert_eq!(*bench.commands.lock().unwrap(), bus_off_commands());
+    }
+
+    #[test]
+    fn a_runtime_shut_down_without_stop_still_takes_the_bus_off() {
+        let (bench, _script) = bench(Duration::from_secs(60));
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let task = runtime.block_on(async {
+            let mut task = task::open::<Rigged>(bench.clone(), CanOptions::default())
+                .await
+                .unwrap();
+            next(&mut task).await;
+            task
+        });
+        drop(runtime);
+        assert_eq!(*bench.commands.lock().unwrap(), bus_off_commands());
+        drop(task);
     }
 }

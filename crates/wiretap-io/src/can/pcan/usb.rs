@@ -23,8 +23,8 @@ use wiretap_protocol::{
 };
 
 use super::{
-    check, identify, incoming, outgoing, restart, serial_text, start, stop, timing, ucan, BusWatch,
-    Commands, PcanDevice, PcanModel, PcanOptions, Ticks,
+    check, identify, incoming, outgoing, restart, serial_text, start, timing, ucan, BusWatch,
+    Commands, OnBus, PcanDevice, PcanModel, PcanOptions, Ticks,
 };
 use crate::can::{
     clock::Received,
@@ -150,10 +150,12 @@ async fn in_any_model<T, F: Future<Output = Result<T, CanError>>>(
 const TIMEOUT: Duration = Duration::from_secs(1);
 /// Windows ignores nusb's own, so the wait is tokio's.
 const CONTROL_TIMEOUT: Duration = Duration::from_secs(2);
+/// Each blocking transfer a drop makes.
+const DROP_TIMEOUT: Duration = Duration::from_millis(100);
 const IN_FLIGHT: usize = 4;
 
 struct Classic {
-    commands: CommandPipe,
+    commands: OnBus<CommandPipe>,
     message_in: Endpoint<Bulk, In>,
     message_out: Endpoint<Bulk, Out>,
     srr: bool,
@@ -185,7 +187,7 @@ impl Device for Classic {
             bulk_in.submit(bulk_in.allocate(transfer));
         }
         let device = Self {
-            commands,
+            commands: OnBus::new(commands),
             message_in: bulk_in,
             message_out,
             srr: options.own_frames && rev >= SELF_RECEPTION_FROM_REV,
@@ -235,21 +237,19 @@ impl Device for Classic {
     }
 
     async fn recover(&mut self) {
-        self.bus.recover(restart(&mut self.commands)).await;
+        self.bus.recover(restart(&mut self.commands.usb)).await;
     }
 
-    async fn close(mut self) {
-        stop(&mut self.commands).await;
+    async fn close(self) {
+        self.commands.stop().await;
     }
 }
 
 struct Ucan {
-    pipe: UcanPipe,
+    started: ucan::OnBus<UcanPipe>,
     data_in: Endpoint<Bulk, In>,
     data_out: Endpoint<Bulk, Out>,
-    channel: u8,
     fd: bool,
-    high_speed: bool,
     restart: Vec<UcanCommand>,
     bus: BusWatch,
 }
@@ -293,12 +293,10 @@ impl Device for Ucan {
             data_in.submit(data_in.allocate(transfer));
         }
         let device = Self {
-            pipe,
+            started: ucan::OnBus::new(pipe, pcan.channel, high_speed),
             data_in,
             data_out,
-            channel: pcan.channel,
             fd: pcan.data.is_some(),
-            high_speed,
             restart: ucan::operational(&firmware, pcan.channel, options.listen_only),
             bus: BusWatch::new(pcan.channel),
         };
@@ -310,7 +308,7 @@ impl Device for Ucan {
             fd: self.fd,
             brs: self.fd,
             rtr: true,
-            buses: Some(self.channel + 1),
+            buses: Some(self.started.channel + 1),
         }
     }
 
@@ -328,14 +326,14 @@ impl Device for Ucan {
     }
 
     async fn write(&mut self, frame: &CanFrame) -> io::Result<()> {
-        if frame.bus != self.channel {
+        let channel = self.started.channel;
+        if frame.bus != channel {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("this task sends on channel {}", self.channel),
+                format!("this task sends on channel {channel}"),
             ));
         }
-        self.data_out
-            .submit(ucan::outgoing(frame, self.channel).into());
+        self.data_out.submit(ucan::outgoing(frame, channel).into());
         bounded(&mut self.data_out).await.map(drop)
     }
 
@@ -344,12 +342,13 @@ impl Device for Ucan {
     }
 
     async fn recover(&mut self) {
-        let restart = ucan::transmit(&mut self.pipe, &self.restart, self.high_speed);
+        let started = &mut self.started;
+        let restart = ucan::transmit(&mut started.pipe, &self.restart, started.high_speed);
         self.bus.recover(restart).await;
     }
 
-    async fn close(mut self) {
-        ucan::stop(&mut self.pipe, self.channel, self.high_speed).await;
+    async fn close(self) {
+        self.started.stop().await;
     }
 }
 
@@ -372,6 +371,10 @@ impl Commands for CommandPipe {
         Command::from_bytes(&reply.buffer[..reply.actual_len])
             .map(|reply| reply.args)
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "a short reply"))
+    }
+
+    fn send_now(&mut self, command: Command) -> io::Result<()> {
+        send_blocking(&mut self.out, command.to_bytes().to_vec())
     }
 }
 
@@ -398,7 +401,33 @@ impl ucan::Pipe for UcanPipe {
     }
 
     async fn driver_loaded(&mut self, loaded: bool) -> io::Result<()> {
-        let told = self.interface.control_out(
+        let told = self.tell_driver_loaded(loaded, CONTROL_TIMEOUT);
+        within_control_timeout(told.into_future()).await
+    }
+
+    async fn command(&mut self, transfer: Vec<u8>) -> io::Result<()> {
+        let out = self.command.as_mut().ok_or(io::ErrorKind::NotConnected)?;
+        out.submit(transfer.into());
+        bounded(out).await.map(drop)
+    }
+
+    fn driver_loaded_now(&mut self, loaded: bool) -> io::Result<()> {
+        Ok(self.tell_driver_loaded(loaded, DROP_TIMEOUT).wait()?)
+    }
+
+    fn command_now(&mut self, transfer: Vec<u8>) -> io::Result<()> {
+        let out = self.command.as_mut().ok_or(io::ErrorKind::NotConnected)?;
+        send_blocking(out, transfer)
+    }
+}
+
+impl UcanPipe {
+    fn tell_driver_loaded(
+        &self,
+        loaded: bool,
+        timeout: Duration,
+    ) -> impl MaybeFuture<Output = Result<(), nusb::transfer::TransferError>> {
+        self.interface.control_out(
             ControlOut {
                 control_type: ControlType::Vendor,
                 recipient: Recipient::Other,
@@ -407,15 +436,8 @@ impl ucan::Pipe for UcanPipe {
                 index: 0,
                 data: &driver_loaded(loaded),
             },
-            CONTROL_TIMEOUT,
-        );
-        within_control_timeout(told.into_future()).await
-    }
-
-    async fn command(&mut self, transfer: Vec<u8>) -> io::Result<()> {
-        let out = self.command.as_mut().ok_or(io::ErrorKind::NotConnected)?;
-        out.submit(transfer.into());
-        bounded(out).await.map(drop)
+            timeout,
+        )
     }
 }
 
@@ -443,6 +465,21 @@ async fn bounded<D: EndpointDirection>(endpoint: &mut Endpoint<Bulk, D>) -> io::
     };
     completion.status.map_err(io::Error::from)?;
     Ok(completion)
+}
+
+/// A send a task dropped mid-way left pending is cancelled first.
+fn send_blocking(endpoint: &mut Endpoint<Bulk, Out>, transfer: Vec<u8>) -> io::Result<()> {
+    endpoint.cancel_all();
+    while endpoint.pending() > 0 {
+        endpoint
+            .wait_next_complete(DROP_TIMEOUT)
+            .ok_or(io::ErrorKind::TimedOut)?;
+    }
+    endpoint.submit(transfer.into());
+    let completion = endpoint
+        .wait_next_complete(DROP_TIMEOUT)
+        .ok_or(io::ErrorKind::TimedOut)?;
+    Ok(completion.status?)
 }
 
 /// An adapter claimed, by family.

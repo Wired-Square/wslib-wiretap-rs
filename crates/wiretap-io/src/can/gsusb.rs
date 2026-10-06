@@ -95,6 +95,42 @@ trait Control {
         value: u16,
         data: &[u8],
     ) -> impl Future<Output = io::Result<()>> + Send;
+
+    /// Blocking, for a drop: no runtime may be left to wait in.
+    fn set_now(&self, request: Breq, value: u16, data: &[u8]) -> io::Result<()>;
+}
+
+/// A started channel's control pipe. Dropped before `reset`, as when the
+/// runtime shuts down around its task, it resets the channel itself.
+struct OnBus<U: Control> {
+    usb: U,
+    channel: u16,
+    was_reset: bool,
+}
+
+impl<U: Control> OnBus<U> {
+    fn new(usb: U, channel: u8) -> Self {
+        Self {
+            usb,
+            channel: channel.into(),
+            was_reset: false,
+        }
+    }
+
+    async fn reset(mut self) {
+        let reset = Mode::RESET.to_bytes();
+        let _ = self.usb.set(Breq::Mode, self.channel, &reset).await;
+        self.was_reset = true;
+    }
+}
+
+impl<U: Control> Drop for OnBus<U> {
+    fn drop(&mut self) {
+        if !self.was_reset {
+            let reset = Mode::RESET.to_bytes();
+            let _ = self.usb.set_now(Breq::Mode, self.channel, &reset);
+        }
+    }
 }
 
 struct Started {
@@ -597,12 +633,41 @@ mod tests {
         }
 
         async fn set(&self, request: Breq, value: u16, data: &[u8]) -> io::Result<()> {
+            self.set_now(request, value, data)
+        }
+
+        fn set_now(&self, request: Breq, value: u16, data: &[u8]) -> io::Result<()> {
             self.log
                 .lock()
                 .unwrap()
                 .push(Request::Set(request, value, data.to_vec()));
             self.fail(request)
         }
+    }
+
+    impl Control for &FakeUsb {
+        async fn get(&self, request: Breq, value: u16, length: usize) -> io::Result<Vec<u8>> {
+            (**self).get(request, value, length).await
+        }
+
+        async fn set(&self, request: Breq, value: u16, data: &[u8]) -> io::Result<()> {
+            (**self).set(request, value, data).await
+        }
+
+        fn set_now(&self, request: Breq, value: u16, data: &[u8]) -> io::Result<()> {
+            (**self).set_now(request, value, data)
+        }
+    }
+
+    #[tokio::test]
+    async fn a_channel_dropped_unreset_resets_itself_and_a_reset_one_only_once() {
+        let dropped = FakeUsb::new(CLASSIC_FEATURES, 48_000_000);
+        drop(OnBus::new(&dropped, 1));
+        let reset = FakeUsb::new(CLASSIC_FEATURES, 48_000_000);
+        OnBus::new(&reset, 1).reset().await;
+        let mode_reset = Request::Set(Breq::Mode, 1, Mode::RESET.to_bytes().to_vec());
+        assert_eq!(dropped.log(), [mode_reset]);
+        assert_eq!(reset.log(), dropped.log());
     }
 
     fn words(words: &[u32]) -> Vec<u8> {

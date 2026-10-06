@@ -27,6 +27,12 @@ pub(super) trait Pipe {
     fn driver_loaded(&mut self, loaded: bool) -> impl Future<Output = io::Result<()>> + Send;
 
     fn command(&mut self, transfer: Vec<u8>) -> impl Future<Output = io::Result<()>> + Send;
+
+    /// Blocking, for a drop: no runtime may be left to wait in.
+    fn driver_loaded_now(&mut self, loaded: bool) -> io::Result<()>;
+
+    /// Blocking, as `driver_loaded_now`.
+    fn command_now(&mut self, transfer: Vec<u8>) -> io::Result<()>;
 }
 
 /// The nominal timing, and the data phase's where CAN FD is asked for.
@@ -108,15 +114,59 @@ pub(super) async fn start(
 
 /// Best effort: each step is tried whatever became of the one before.
 pub(super) async fn stop(pipe: &mut impl Pipe, channel: u8, high_speed: bool) {
-    let _ = send(
-        pipe,
-        "CLR_DIS_OPTION",
-        &[reporting(channel, false)],
-        high_speed,
-    )
-    .await;
-    let _ = send(pipe, "RESET_MODE", &[reset_mode(channel)], high_speed).await;
+    for transfer in stopping(channel, high_speed) {
+        let _ = pipe.command(transfer).await;
+    }
     let _ = pipe.driver_loaded(false).await;
+}
+
+/// `CLR_DIS_OPTION` and `RESET_MODE`, a command list each.
+fn stopping(channel: u8, high_speed: bool) -> Vec<Vec<u8>> {
+    [reporting(channel, false), reset_mode(channel)]
+        .into_iter()
+        .flat_map(|command| {
+            let list = command_list(&[command]);
+            transfers(&list, high_speed)
+                .map(<[u8]>::to_vec)
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+/// A started channel's pipe. Dropped before `stop`, as when the runtime shuts
+/// down around its task, it stops the channel itself.
+pub(super) struct OnBus<P: Pipe> {
+    pub(super) pipe: P,
+    pub(super) channel: u8,
+    pub(super) high_speed: bool,
+    stopped: bool,
+}
+
+impl<P: Pipe> OnBus<P> {
+    pub(super) fn new(pipe: P, channel: u8, high_speed: bool) -> Self {
+        Self {
+            pipe,
+            channel,
+            high_speed,
+            stopped: false,
+        }
+    }
+
+    pub(super) async fn stop(mut self) {
+        stop(&mut self.pipe, self.channel, self.high_speed).await;
+        self.stopped = true;
+    }
+}
+
+impl<P: Pipe> Drop for OnBus<P> {
+    fn drop(&mut self) {
+        if !self.stopped {
+            for transfer in stopping(self.channel, self.high_speed) {
+                let _ = self.pipe.command_now(transfer);
+            }
+            let _ = self.pipe.driver_loaded_now(false);
+        }
+    }
 }
 
 /// Error records and the calibration the kernel keeps its clock by.
@@ -261,17 +311,47 @@ mod tests {
         }
 
         async fn driver_loaded(&mut self, loaded: bool) -> io::Result<()> {
+            self.driver_loaded_now(loaded)
+        }
+
+        async fn command(&mut self, transfer: Vec<u8>) -> io::Result<()> {
+            self.command_now(transfer)
+        }
+
+        fn driver_loaded_now(&mut self, loaded: bool) -> io::Result<()> {
             self.log.push(Op::DriverLoaded(loaded));
             Ok(())
         }
 
-        async fn command(&mut self, transfer: Vec<u8>) -> io::Result<()> {
+        fn command_now(&mut self, transfer: Vec<u8>) -> io::Result<()> {
             let opcode = u16::from_le_bytes([transfer[0], transfer[1]]) & 0x3ff;
             self.log.push(Op::Command(transfer));
             match self.broken {
                 Some((broken, kind)) if broken == opcode => Err(kind.into()),
                 _ => Ok(()),
             }
+        }
+    }
+
+    impl Pipe for &mut FakePipe {
+        async fn info(&mut self) -> io::Result<Vec<u8>> {
+            (**self).info().await
+        }
+
+        async fn driver_loaded(&mut self, loaded: bool) -> io::Result<()> {
+            (**self).driver_loaded(loaded).await
+        }
+
+        async fn command(&mut self, transfer: Vec<u8>) -> io::Result<()> {
+            (**self).command(transfer).await
+        }
+
+        fn driver_loaded_now(&mut self, loaded: bool) -> io::Result<()> {
+            (**self).driver_loaded_now(loaded)
+        }
+
+        fn command_now(&mut self, transfer: Vec<u8>) -> io::Result<()> {
+            (**self).command_now(transfer)
         }
     }
 
@@ -467,6 +547,16 @@ mod tests {
                 Op::DriverLoaded(false),
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn a_channel_dropped_unstopped_stops_itself_and_a_stopped_one_only_once() {
+        let mut dropped = FakePipe::default();
+        drop(OnBus::new(&mut dropped, 1, false));
+        let mut stopped = FakePipe::default();
+        OnBus::new(&mut stopped, 1, false).stop().await;
+        assert!(!dropped.log.is_empty());
+        assert_eq!(dropped.log, stopped.log);
     }
 
     fn can_rx(ts: u64, channel_dlc: u8, flags: u16, id: u32, data: &[u8]) -> Vec<u8> {

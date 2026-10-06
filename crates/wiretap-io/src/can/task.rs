@@ -56,7 +56,9 @@ pub(crate) trait Device: Sized + Send + 'static {
     fn close(self) -> impl Future<Output = ()> + Send;
 }
 
-/// Owns the task: dropping it stops the task and closes the device.
+/// Owns the task: dropping it stops the task and closes the device. A gs_usb or
+/// PCAN adapter is taken off its bus even by a runtime shut down around the
+/// task, but a process killed, or ended by `std::process::exit`, leaves it on.
 pub struct CanTask {
     events: mpsc::Receiver<CanEvent>,
     writer: CanWriter,

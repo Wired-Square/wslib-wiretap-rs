@@ -8,9 +8,9 @@ use nusb::{
     DeviceInfo as UsbDevice, Endpoint, Interface, MaybeFuture,
 };
 use tokio::time::{timeout, timeout_at, Instant};
-use wiretap_protocol::gs_usb::{Breq, Mode, DEVICES};
+use wiretap_protocol::gs_usb::{Breq, DEVICES};
 
-use super::{identify, start, Control, Frames, GsUsbDevice, GsUsbOptions, Transfers};
+use super::{identify, start, Control, Frames, GsUsbDevice, GsUsbOptions, OnBus, Transfers};
 use crate::can::{
     clock::Received,
     task::{self, Device},
@@ -56,11 +56,13 @@ pub async fn probe(device: &GsUsbDevice, timeout: Duration) -> Result<DeviceInfo
 }
 
 const CONTROL_TIMEOUT: Duration = Duration::from_secs(1);
+/// The reset a drop sends, blocking.
+const DROP_TIMEOUT: Duration = Duration::from_millis(100);
 const WRITE_TIMEOUT: Duration = Duration::from_secs(1);
 const IN_FLIGHT: usize = 4;
 
 struct GsUsb {
-    interface: Interface,
+    control: OnBus<Interface>,
     frames: Frames<Endpoints>,
     fd: bool,
 }
@@ -93,7 +95,7 @@ impl Device for GsUsb {
         }
         let endpoints = Endpoints { bulk_in, bulk_out };
         let device = Self {
-            interface,
+            control: OnBus::new(interface, gs.channel),
             frames: Frames::new(endpoints, gs.channel, started.timestamps, WRITE_TIMEOUT),
             fd: started.fd,
         };
@@ -128,11 +130,7 @@ impl Device for GsUsb {
     }
 
     async fn close(self) {
-        let reset = Mode::RESET.to_bytes();
-        let _ = self
-            .interface
-            .set(Breq::Mode, self.frames.channel.into(), &reset)
-            .await;
+        self.control.reset().await;
     }
 }
 
@@ -186,21 +184,27 @@ impl Control for Interface {
     }
 
     async fn set(&self, request: Breq, value: u16, data: &[u8]) -> io::Result<()> {
-        let told = self.control_out(
-            ControlOut {
-                control_type: ControlType::Vendor,
-                recipient: Recipient::Interface,
-                request: request as u8,
-                value,
-                index: 0,
-                data,
-            },
-            CONTROL_TIMEOUT,
-        );
+        let told = self.control_out(vendor_out(request, value, data), CONTROL_TIMEOUT);
         timeout(CONTROL_TIMEOUT, told.into_future())
             .await
             .map_err(|_| io::Error::from(io::ErrorKind::TimedOut))?
             .map_err(io::Error::from)
+    }
+
+    fn set_now(&self, request: Breq, value: u16, data: &[u8]) -> io::Result<()> {
+        let told = self.control_out(vendor_out(request, value, data), DROP_TIMEOUT);
+        Ok(told.wait()?)
+    }
+}
+
+fn vendor_out(request: Breq, value: u16, data: &[u8]) -> ControlOut<'_> {
+    ControlOut {
+        control_type: ControlType::Vendor,
+        recipient: Recipient::Interface,
+        request: request as u8,
+        value,
+        index: 0,
+        data,
     }
 }
 

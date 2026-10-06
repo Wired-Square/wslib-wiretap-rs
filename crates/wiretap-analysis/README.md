@@ -46,7 +46,7 @@ the same way in `tests/fixtures/hypothesis`.
 ## Using it
 
 ```toml
-wiretap-analysis = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.1.2" }
+wiretap-analysis = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.1.3" }
 ```
 
 Nothing in this workspace depends on it; its consumers are outside.

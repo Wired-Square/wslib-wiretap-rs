@@ -307,16 +307,19 @@ struct Started<A: Api> {
 }
 
 impl<A: Api> Started<A> {
-    /// Listen-only is set before `CAN_Initialize`, the rest after it.
+    /// Listen-only is set, either way, before `CAN_Initialize`, so an earlier
+    /// open in this process can't leave it on; the rest after it.
     fn initialize(&self) -> Result<(), CanError> {
         let api = &*self.api;
         let on = ON.to_le_bytes();
-        if self.listen_only {
-            called(
-                "PCAN_LISTEN_ONLY",
-                api.set_value(self.handle, parameter::LISTEN_ONLY, &on),
-            )?;
-        }
+        called(
+            "PCAN_LISTEN_ONLY",
+            api.set_value(
+                self.handle,
+                parameter::LISTEN_ONLY,
+                &u32::from(self.listen_only).to_le_bytes(),
+            ),
+        )?;
         called("CAN_Initialize", api.initialize(self.handle, self.btr0btr1))?;
         called(
             "PCAN_ALLOW_STATUS_FRAMES",
@@ -848,14 +851,16 @@ mod tests {
             .expect("the task running")
     }
 
-    const STARTED: [Call; 3] = [
+    const STARTED: [Call; 4] = [
+        Call::Set(parameter::LISTEN_ONLY, 0),
         Call::Initialize(0x51, 0x001c),
         Call::Set(parameter::ALLOW_STATUS_FRAMES, ON),
         Call::Watch(0x51),
     ];
 
     #[tokio::test]
-    async fn listen_only_is_set_before_initialize_and_echo_after_it_and_stop_uninitializes() {
+    async fn listen_only_is_set_either_way_before_initialize_and_echo_after_it_and_stop_uninitializes(
+    ) {
         let fake = Fake::with_one_usb_channel();
         let mut task = opened(&fake, options(true, true)).await.unwrap();
         let CanEvent::Connected(info) = next(&mut task).await else {

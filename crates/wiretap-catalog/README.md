@@ -93,7 +93,7 @@ decoding happens once in Rust rather than per consumer.
 ## Using it
 
 ```toml
-wiretap-catalog = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.1.4" }
+wiretap-catalog = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.1.5" }
 ```
 
 ```rust

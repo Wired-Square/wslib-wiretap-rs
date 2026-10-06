@@ -33,8 +33,9 @@
 //!   SocketCAN interface. Implies `can`.
 //! - `can-pcan` — `can::pcan::{devices, open, probe}`: a PEAK-System adapter
 //!   over USB, the classic PCAN-USB or the CAN FD PCAN-USB FD, PCAN-Chip USB,
-//!   PCAN-USB Pro FD and PCAN-USB X6; the four FD models are untested. Implies
-//!   `can`.
+//!   PCAN-USB Pro FD and PCAN-USB X6; the four FD models are untested. On
+//!   Windows, one bound to PEAK's own driver goes through `PCANBasic.dll`,
+//!   classic only. Implies `can`.
 //! - `can-socketcan` — `can::socketcan::{open, bitrates}`: a SocketCAN
 //!   interface. Implies `can`.
 //!

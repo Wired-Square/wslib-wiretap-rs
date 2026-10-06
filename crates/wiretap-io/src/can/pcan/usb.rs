@@ -23,8 +23,8 @@ use wiretap_protocol::{
 };
 
 use super::{
-    check, identify, incoming, outgoing, restart, serial_text, start, timing, ucan, BusWatch,
-    Commands, OnBus, PcanDevice, PcanModel, PcanOptions, Ticks,
+    check, identify, incoming, not_opened, outgoing, restart, serial_text, start, timing, ucan,
+    BusWatch, Commands, OnBus, PcanDevice, PcanModel, PcanOptions, Ticks,
 };
 use crate::can::{
     clock::Received,
@@ -56,6 +56,10 @@ pub fn devices() -> io::Result<Vec<PcanDevice>> {
 /// spawns the task that reads it. A serial is found whatever its model, whose
 /// protocol and limits then apply. Panics outside a tokio runtime.
 pub async fn open(pcan: PcanOptions, options: CanOptions) -> Result<CanTask, CanError> {
+    #[cfg(target_os = "windows")]
+    if held_by_peaks_driver(&pcan.device).await {
+        return super::basic::open(pcan, options).await;
+    }
     in_any_model(&pcan.device, |model| {
         let mut pcan = pcan.clone();
         pcan.device.model = model;
@@ -77,6 +81,10 @@ async fn open_as(pcan: PcanOptions, options: CanOptions) -> Result<CanTask, CanE
 /// bus is never touched, and a serial is found whatever its model. Panics
 /// outside a tokio runtime.
 pub async fn probe(device: &PcanDevice, timeout: Duration) -> Result<DeviceInfo, CanError> {
+    #[cfg(target_os = "windows")]
+    if held_by_peaks_driver(device).await {
+        return super::basic::probe(device);
+    }
     let deadline = Instant::now() + timeout;
     let probed = in_any_model(device, |model| {
         let device = PcanDevice {
@@ -107,6 +115,31 @@ async fn probe_as<C: Claim>(
     timeout_at(deadline, claimed.identify())
         .await
         .unwrap_or_else(|_| Err(CanError::Read(io::ErrorKind::TimedOut.into())))
+}
+
+/// The adapter the selector names by USB serial or by bus and address, else,
+/// for a serial no USB string carries, any of its model.
+#[cfg(target_os = "windows")]
+async fn held_by_peaks_driver(device: &PcanDevice) -> bool {
+    let Ok(listed) = nusb::list_devices().await else {
+        return false;
+    };
+    let adapters: Vec<UsbDevice> = listed
+        .filter(|found| model(found) == Some(device.model))
+        .collect();
+    let held = |found: &UsbDevice| super::basic::is_pcan_usb(found.driver());
+    let named = adapters
+        .iter()
+        .find(|found| device.serial.is_some() && found.serial_number() == device.serial.as_deref())
+        .or_else(|| {
+            adapters
+                .iter()
+                .find(|found| bus(found) == device.bus && found.device_address() == device.address)
+        });
+    match named {
+        Some(found) => held(found),
+        None => device.serial.is_some() && adapters.iter().any(held),
+    }
 }
 
 /// The selector's model first. Past a refusal or a miss there, a serial is
@@ -618,21 +651,6 @@ fn model(found: &UsbDevice) -> Option<PcanModel> {
     (found.vendor_id() == VID)
         .then(|| PcanModel::from_pid(found.product_id()))
         .flatten()
-}
-
-fn selector(device: &PcanDevice) -> String {
-    match &device.serial {
-        Some(serial) => format!("pcan {serial}"),
-        None => format!("pcan {}:{}", device.bus, device.address),
-    }
-}
-
-fn not_opened(device: &PcanDevice) -> impl Fn(io::Error) -> CanError {
-    let device = selector(device);
-    move |source| CanError::Open {
-        device: device.clone(),
-        source,
-    }
 }
 
 #[allow(dead_code)]

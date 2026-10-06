@@ -21,7 +21,7 @@ can-gvret = ["can"]
 can-gvret-serial = ["can-gvret", "serial-write"]
 can-slcan = ["can", "serial-write"]
 can-gsusb = ["can", "dep:nusb"]
-can-pcan = ["can", "dep:nusb"]
+can-pcan = ["can", "dep:nusb", "dep:libloading"]
 can-socketcan = ["can", "dep:socketcan", "dep:libc"]
 
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux", target_os = "ios"))'.dependencies]
@@ -41,6 +41,10 @@ nix = { version = "0.29", features = ["term", "fs", "ioctl"], optional = true }
 
 [target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
 nusb = { version = "0.2", features = ["tokio"], optional = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# PEAK's own driver's `PCANBasic.dll`, loaded at open.
+libloading = { version = "0.8", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 socketcan = { version = "3.6", default-features = false, features = ["netlink"], optional = true }

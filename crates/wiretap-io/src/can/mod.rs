@@ -59,8 +59,8 @@ pub struct CanRead {
     pub at: SystemTime,
     /// The device's own clock, unwrapped, where it has one.
     pub device_us: Option<u64>,
-    /// The device dropped frames before this one; only gs_usb reports it, and
-    /// the other transports leave it false.
+    /// The device dropped frames before this one; only gs_usb and PEAK's
+    /// Windows driver report it, and the other transports leave it false.
     pub overflow: bool,
 }
 
@@ -163,8 +163,8 @@ pub enum CanEvent {
     },
     /// gs_usb and PEAK only, on a change of `state`. gs_usb fills every field, also
     /// reports on a change of `no_ack` and every transmit timeout, and 5 s with
-    /// no report clears it; PEAK fills `state` and the counters, and restarts a
-    /// bus-off channel after 1 s.
+    /// no report clears it; PEAK fills `state` and, over nusb, the counters,
+    /// and restarts a bus-off channel after 1 s.
     Bus(BusState),
 }
 

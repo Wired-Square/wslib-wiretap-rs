@@ -33,6 +33,7 @@ use super::{
     BusState, CanError, CanFrame, DeviceInfo, Direction,
 };
 
+mod basic;
 mod ucan;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod usb;
@@ -167,6 +168,21 @@ fn untimeable(bitrate: u32, sample_point: Option<f32>, clock_hz: u32) -> CanErro
     CanError::Config(format!(
         "{bitrate} bit/s at a {sample_point}% sample point can't be timed from the {clock_hz} Hz clock"
     ))
+}
+
+fn selector(device: &PcanDevice) -> String {
+    match &device.serial {
+        Some(serial) => format!("pcan {serial}"),
+        None => format!("pcan {}:{}", device.bus, device.address),
+    }
+}
+
+fn not_opened(device: &PcanDevice) -> impl Fn(io::Error) -> CanError {
+    let device = selector(device);
+    move |source| CanError::Open {
+        device: device.clone(),
+        source,
+    }
 }
 
 fn serial_text(serial: Option<u32>) -> Option<String> {

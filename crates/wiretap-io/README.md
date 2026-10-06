@@ -20,7 +20,7 @@ an app compiles only the ones it uses.
 | `can-gvret-serial` | `gvret::Link::Serial`: the same device over a serial port, such as an M2 or an ESP32-RET on USB. Implies `can-gvret` and `serial-write` |
 | `can-slcan` | `can::slcan::open`: an SLCAN adapter on a serial port, such as a CANable, with CAN FD on the Elmue firmware. It opens the port and starts the channel at once, so a dead adapter is the caller's error. Implies `can` and `serial-write` |
 | `can-gsusb` | `can::gsusb::open`: a gs_usb adapter over USB on macOS and Windows, such as a CANable or a candleLight, one channel per task, with CAN FD where the device has it. It claims the adapter and starts the channel at once, so a missing adapter is the caller's error. And `devices`, the adapters plugged in, and `probe`, which reads one without starting it. Implies `can` |
-| `can-pcan` | `can::pcan::open`: a PEAK-System adapter over USB on macOS and Windows, one channel per task: the classic PCAN-USB, and the CAN FD PCAN-USB FD, PCAN-Chip USB, PCAN-USB Pro FD and PCAN-USB X6. **The four FD models are untested**: no device of theirs has met this code. It claims the adapter and starts the channel at once, so a missing adapter is the caller's error. And `devices`, the adapters plugged in, and `probe`, which reads one without starting it. Implies `can` |
+| `can-pcan` | `can::pcan::open`: a PEAK-System adapter over USB on macOS and Windows, one channel per task: the classic PCAN-USB, and the CAN FD PCAN-USB FD, PCAN-Chip USB, PCAN-USB Pro FD and PCAN-USB X6. **The four FD models are untested**: no device of theirs has met this code. On Windows, an adapter bound to PEAK's own driver goes through `PCANBasic.dll` instead, classic CAN on channel 0 only. It claims the adapter and starts the channel at once, so a missing adapter is the caller's error. And `devices`, the adapters plugged in, and `probe`, which reads one without starting it. Implies `can` |
 | `can-socketcan` | `can::socketcan::open`: a SocketCAN interface on Linux, classic and FD, stamped by the kernel. It opens the socket at once, so a missing interface is the caller's error. And `bitrates`, the interface's configured rates. Implies `can` |
 
 There are **no default features**. Modbus, `can` and `can-gvret` build only for Windows,
@@ -118,8 +118,8 @@ is never later than the read that delivered it. A counter that jumps back is a
 device reset and re-anchors, and one that stays put for a second of wall clock
 falls back to the read's time, as `TimeMapping::Host` always does. No stamp is
 earlier than one the task has already handed out. A read's `overflow` says the
-device dropped frames before it; only gs_usb reports that, and the other
-transports leave it false. Only gs_usb and PEAK emit `CanEvent::Bus`, and `CanEvent` is
+device dropped frames before it; only gs_usb and PEAK's Windows driver report
+that, and the other transports leave it false. Only gs_usb and PEAK emit `CanEvent::Bus`, and `CanEvent` is
 `#[non_exhaustive]`. Every send is answered:
 `ListenOnly` and `Unsupported` before it is queued, then `Disconnected`,
 `QueueFull` or `Stopped` as for serial writes, and otherwise once the device
@@ -321,6 +321,28 @@ bus-off channel ignores what the device reports until, 1 s later, the task
 restarts it in place, as the kernel does with `restart-ms`, and reports it
 `Active` with its counters zeroed: bus on on the classic adapter, the error
 counters cleared and the mode on an FD one. A reopen starts clean.
+
+On Windows an adapter bound to PEAK's own driver, the `PCAN_USB` service
+PEAK-Drivers installs, is opened through `PCANBasic.dll` instead of nusb —
+**untested at runtime: no adapter has met this code** — loaded when `open` or
+`probe` is called and never bundled; without it the open is `Open` with
+`NotFound`, saying to install PEAK-Drivers. Through the DLL only classic CAN on
+channel 0 is opened, `data` or another `channel` being `Config`. PCAN-Basic sees no USB
+serial, so the one USB channel it has attached is the adapter; among several,
+the selector's serial is read as hex and matched against each channel's device
+id, and with none matching the open is `Config`, listing them. `open` sets
+listen-only before `CAN_Initialize` (the `Btr0Btr1` word being the same timing
+as over nusb), then status frames on, echo frames with `own_frames`, which are
+`Tx` reads, and the receive event. A read takes `CAN_Read` until the queue is
+empty, then `CAN_GetStatus`; with nothing queued it waits up to 100 ms for the
+event. Each frame is stamped by the driver's µs timestamp, mapped as GVRET's
+is. `OVERRUN` or `QOVERRUN` sets `overflow` on the next frame. The bus status
+feeds `CanEvent::Bus` as on the classic adapter, with no counters bar a
+restart's zeroes: `BUSLIGHT` and `BUSHEAVY` are `Warning`, and the restart of a
+bus-off channel uninitialises and initialises it again. `ILLHW` is `Closed`, and `HWINUSE` says another program
+holds the adapter. A send whose transmit queue is full is retried for up to
+1 s. `stop`, every loss and a runtime shut down around the task uninitialise
+the channel. `probe` reads the attached channels and initialises nothing.
 
 `pcan::probe` claims the adapter as `open` does, and within its one `timeout`
 reads `SN` or the firmware info, then releases it; the bus is never touched.

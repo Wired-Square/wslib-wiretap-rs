@@ -31,7 +31,8 @@ fn activity() -> Value {
 fn frame_row() -> Value {
     json!({
         "ts_us": 1700000000000000i64, "id": 259, "extended": false, "dlc": 8, "len": 8,
-        "is_fd": false, "bus": 2, "dir": "rx", "data_hex": "010300000001840a",
+        "is_fd": false, "is_rtr": false, "is_brs": false, "is_esi": false, "bus": 2, "dir": "rx",
+        "data_hex": "010300000001840a",
     })
 }
 
@@ -129,6 +130,27 @@ fn a_frame_row_from_a_gateway_without_len_parses() {
     let mut row = frame_row();
     row.as_object_mut().unwrap().remove("len");
     assert_eq!(parse::<FrameBatchRow>(row).len, None);
+}
+
+#[test]
+fn a_frame_row_from_a_gateway_without_the_can_flags_has_none() {
+    let mut row = frame_row();
+    let fields = row.as_object_mut().unwrap();
+    for flag in ["is_rtr", "is_brs", "is_esi"] {
+        fields.remove(flag);
+    }
+    let row = parse::<FrameBatchRow>(row);
+    assert!(!row.is_rtr && !row.is_brs && !row.is_esi);
+}
+
+#[test]
+fn a_frame_rows_can_flags_round_trip() {
+    let mut row = frame_row();
+    for flag in ["is_rtr", "is_brs", "is_esi"] {
+        row[flag] = json!(true);
+    }
+    let row = round_trip::<FrameBatchRow>(row);
+    assert!(row.is_rtr && row.is_brs && row.is_esi);
 }
 
 #[test]

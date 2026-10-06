@@ -56,6 +56,47 @@ impl CanFrame {
     }
 }
 
+/// A frame's flags as one byte: the bit table storage and the desktop share.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CanFlags(pub u8);
+
+impl CanFlags {
+    pub const RTR: Self = Self(0x01);
+    /// Only with [`Self::FD`].
+    pub const BRS: Self = Self(0x02);
+    /// Only with [`Self::FD`].
+    pub const ESI: Self = Self(0x04);
+    pub const EXT: Self = Self(0x08);
+    pub const FD: Self = Self(0x10);
+    pub const TX: Self = Self(0x20);
+
+    /// Every flag by name, for generating the table in another language.
+    pub const NAMES: &[(&str, u8)] = &[
+        ("RTR", Self::RTR.0),
+        ("BRS", Self::BRS.0),
+        ("ESI", Self::ESI.0),
+        ("EXT", Self::EXT.0),
+        ("FD", Self::FD.0),
+        ("TX", Self::TX.0),
+    ];
+
+    pub fn of(frame: &CanFrame, transmitted: bool) -> Self {
+        let bit = |on: bool, flag: Self| if on { flag.0 } else { 0 };
+        Self(
+            bit(frame.rtr, Self::RTR)
+                | bit(frame.fd && frame.brs, Self::BRS)
+                | bit(frame.fd && frame.esi, Self::ESI)
+                | bit(frame.extended, Self::EXT)
+                | bit(frame.fd, Self::FD)
+                | bit(transmitted, Self::TX),
+        )
+    }
+
+    pub fn contains(self, flag: Self) -> bool {
+        self.0 & flag.0 == flag.0
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     Rx,
@@ -151,6 +192,33 @@ mod tests {
         let remote = CanFrame::remote(0, 1, false, 5);
         assert!(remote.rtr && remote.data.is_empty());
         assert_eq!(remote.dlc(), 5);
+    }
+
+    #[test]
+    fn the_flag_table_is_the_wire_contract() {
+        assert_eq!(
+            CanFlags::NAMES,
+            [
+                ("RTR", 0x01),
+                ("BRS", 0x02),
+                ("ESI", 0x04),
+                ("EXT", 0x08),
+                ("FD", 0x10),
+                ("TX", 0x20),
+            ]
+        );
+    }
+
+    #[test]
+    fn brs_and_esi_are_flagged_only_on_an_fd_frame() {
+        let mut fd = CanFrame::data(0, 1, true, true, true, vec![0; 12]);
+        fd.esi = true;
+        assert_eq!(CanFlags::of(&fd, true), CanFlags(0x3E));
+        let mut classic = CanFrame::data(0, 1, false, false, true, vec![0; 8]);
+        classic.esi = true;
+        assert_eq!(CanFlags::of(&classic, false), CanFlags::default());
+        let remote = CanFlags::of(&CanFrame::remote(0, 1, false, 8), false);
+        assert!(remote.contains(CanFlags::RTR) && !remote.contains(CanFlags::FD));
     }
 
     #[test]

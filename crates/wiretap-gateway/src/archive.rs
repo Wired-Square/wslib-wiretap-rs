@@ -39,6 +39,13 @@ pub struct FrameBatchRow {
     #[serde(default)]
     pub len: Option<u16>,
     pub is_fd: bool,
+    /// Absent from gateways before schema v4.
+    #[serde(default)]
+    pub is_rtr: bool,
+    #[serde(default)]
+    pub is_brs: bool,
+    #[serde(default)]
+    pub is_esi: bool,
     pub bus: u8,
     pub dir: String,
     pub data_hex: String,

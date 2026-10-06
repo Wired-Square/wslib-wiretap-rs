@@ -26,6 +26,7 @@
 //! from [`crate::ARB_MASK_EXT`] so the two cannot drift. The WireTAP desktop's
 //! HTTP import record packs its id the same way; it is [`crate::import`].
 
+use crate::can::{CanFlags, CanFrame};
 use crate::crc32::crc32;
 
 mod server;
@@ -86,9 +87,31 @@ pub const ID_ARB_MASK: u32 = crate::ARB_MASK_EXT;
 /// A raw serial record's read sequence, which wraps at 2^31 under [`ID_TX`].
 pub const ID_SEQ_MASK: u32 = !ID_TX;
 
+/// Every kind's flag byte: bit 7 is reserved, written 0 and ignored on parse.
+pub const FLAG_RESERVED_COMMON: u8 = 0x80;
+
 /// A Modbus record's flag byte: bit 0 is whether the message's CRC matched.
-/// A CAN record's flags are all in its `id_flags` word and its byte is 0.
 pub const FLAG_CRC_VALID: u8 = 0x01;
+
+/// A CAN record's flag byte: a remote frame.
+pub const CAN_FLAG_RTR: u8 = CanFlags::RTR.0;
+/// Written only with [`ID_FD`].
+pub const CAN_FLAG_BRS: u8 = CanFlags::BRS.0;
+/// Written only with [`ID_FD`].
+pub const CAN_FLAG_ESI: u8 = CanFlags::ESI.0;
+/// A remote frame's requested length code is bits 3–6.
+pub const CAN_RTR_LEN_SHIFT: u32 = 3;
+pub const CAN_RTR_LEN_MASK: u8 = 0x0F << CAN_RTR_LEN_SHIFT;
+
+/// Each kind's flag bits by name, for generating the table in another
+/// language. A CAN record's length code is [`CAN_RTR_LEN_MASK`] besides.
+pub const CAN_RECORD_FLAGS: &[(&str, u8)] = &[
+    ("RTR", CAN_FLAG_RTR),
+    ("BRS", CAN_FLAG_BRS),
+    ("ESI", CAN_FLAG_ESI),
+];
+pub const MODBUS_RECORD_FLAGS: &[(&str, u8)] = &[("CRC_VALID", FLAG_CRC_VALID)];
+pub const RAW_SERIAL_RECORD_FLAGS: &[(&str, u8)] = &[];
 
 /// What a record's `id_flags` and payload mean. The discriminant is the wire
 /// byte.
@@ -709,6 +732,11 @@ pub enum RecordFields {
         arb_id: u32,
         extended: bool,
         fd: bool,
+        rtr: bool,
+        brs: bool,
+        esi: bool,
+        /// The length code a remote frame requests, 0 unless `rtr`.
+        rtr_len: u8,
         transmitted: bool,
     },
     Modbus {
@@ -729,10 +757,19 @@ impl RecordFields {
         match kind {
             RecordKind::Can => {
                 let (arb_id, extended, fd, _) = record_id_fields(id_flags);
+                let rtr = flags & CAN_FLAG_RTR != 0;
                 RecordFields::Can {
                     arb_id,
                     extended,
                     fd,
+                    rtr,
+                    brs: fd && flags & CAN_FLAG_BRS != 0,
+                    esi: fd && flags & CAN_FLAG_ESI != 0,
+                    rtr_len: if rtr {
+                        (flags & CAN_RTR_LEN_MASK) >> CAN_RTR_LEN_SHIFT
+                    } else {
+                        0
+                    },
                     transmitted,
                 }
             }
@@ -759,8 +796,24 @@ impl RecordFields {
                 arb_id,
                 extended,
                 fd,
+                rtr,
+                brs,
+                esi,
+                rtr_len,
                 transmitted,
-            } => (record_id_flags(arb_id, extended, fd, transmitted), 0),
+            } => {
+                let mut flags = 0;
+                if rtr {
+                    flags |= CAN_FLAG_RTR | (rtr_len << CAN_RTR_LEN_SHIFT) & CAN_RTR_LEN_MASK;
+                }
+                if fd && brs {
+                    flags |= CAN_FLAG_BRS;
+                }
+                if fd && esi {
+                    flags |= CAN_FLAG_ESI;
+                }
+                (record_id_flags(arb_id, extended, fd, transmitted), flags)
+            }
             RecordFields::Modbus {
                 unit,
                 func,
@@ -774,6 +827,43 @@ impl RecordFields {
                 (raw_serial_id(seq) | if transmitted { ID_TX } else { 0 }, 0)
             }
         }
+    }
+
+    pub fn from_can(frame: &CanFrame, transmitted: bool) -> Self {
+        RecordFields::Can {
+            arb_id: frame.arb_id,
+            extended: frame.extended,
+            fd: frame.fd,
+            rtr: frame.rtr,
+            brs: frame.brs,
+            esi: frame.esi,
+            rtr_len: if frame.rtr { frame.dlc() } else { 0 },
+            transmitted,
+        }
+    }
+
+    /// The frame a CAN record carries, or `None` for another kind.
+    pub fn to_can(&self, bus: u8, payload: Vec<u8>) -> Option<CanFrame> {
+        let RecordFields::Can {
+            arb_id,
+            extended,
+            fd,
+            rtr,
+            brs,
+            esi,
+            rtr_len,
+            ..
+        } = *self
+        else {
+            return None;
+        };
+        let mut frame = if rtr {
+            CanFrame::remote(bus, arb_id, extended, rtr_len)
+        } else {
+            CanFrame::data(bus, arb_id, extended, fd, brs, payload)
+        };
+        frame.esi = esi;
+        Some(frame)
     }
 
     pub fn kind(&self) -> RecordKind {
@@ -851,7 +941,7 @@ pub fn encode_record_into(
     out.reserve(record_wire_len(kind, payload.len()));
     out.extend_from_slice(&(ts_us.saturating_sub(base_ts_us) as u32).to_le_bytes());
     out.push(kind as u8);
-    out.push(flags);
+    out.push(flags & !FLAG_RESERVED_COMMON);
     out.push(bus);
     out.extend_from_slice(&(payload.len() as u16).to_le_bytes());
     out.extend_from_slice(&id_flags.to_le_bytes());
@@ -1637,6 +1727,10 @@ mod tests {
             arb_id: 0x18DA_F110,
             extended: true,
             fd: true,
+            rtr: false,
+            brs: false,
+            esi: false,
+            rtr_len: 0,
             transmitted: true,
         };
         let (id_flags, flags) = fields.to_wire();
@@ -1650,10 +1744,164 @@ mod tests {
             arb_id: 0x7FF,
             extended: false,
             fd: false,
+            rtr: false,
+            brs: false,
+            esi: false,
+            rtr_len: 0,
             transmitted: false,
         };
         assert_eq!(std_rx.to_wire(), (0x7FF, 0));
-        assert_eq!(RecordFields::from_wire(RecordKind::Can, 0x7FF, 0), std_rx);
+        assert_eq!(
+            RecordFields::from_wire(RecordKind::Can, 0x7FF, 0),
+            std_rx,
+            "a record from before the CAN flags has none"
+        );
+    }
+
+    fn can_fields(fd: bool, rtr: bool, brs: bool, esi: bool, rtr_len: u8) -> RecordFields {
+        RecordFields::Can {
+            arb_id: 0x123,
+            extended: false,
+            fd,
+            rtr,
+            brs,
+            esi,
+            rtr_len,
+            transmitted: false,
+        }
+    }
+
+    #[test]
+    fn a_remote_frames_length_code_is_bits_3_to_6() {
+        for (code, byte) in [(0, 0x01), (8, 0x41), (15, 0x79)] {
+            let fields = can_fields(false, true, false, false, code);
+            assert_eq!(fields.to_wire(), (0x123, byte), "code {code}");
+            assert_eq!(
+                RecordFields::from_wire(RecordKind::Can, 0x123, byte),
+                fields
+            );
+        }
+    }
+
+    #[test]
+    fn brs_and_esi_ride_only_an_fd_record() {
+        let fd = can_fields(true, false, true, true, 0);
+        assert_eq!(fd.to_wire(), (0x123 | ID_FD, 0x06));
+        assert_eq!(
+            RecordFields::from_wire(RecordKind::Can, 0x123 | ID_FD, 0x06),
+            fd
+        );
+
+        let classic = can_fields(false, false, true, true, 0);
+        assert_eq!(
+            classic.to_wire(),
+            (0x123, 0),
+            "a classic frame has no BRS or ESI"
+        );
+        assert_eq!(
+            RecordFields::from_wire(RecordKind::Can, 0x123, 0x06),
+            can_fields(false, false, false, false, 0),
+            "nor does one parsed"
+        );
+    }
+
+    #[test]
+    fn a_data_records_length_code_is_ignored() {
+        assert_eq!(
+            RecordFields::from_wire(RecordKind::Can, 0x123, CAN_RTR_LEN_MASK),
+            can_fields(false, false, false, false, 0)
+        );
+    }
+
+    #[test]
+    fn each_kinds_flag_table_names_what_the_parser_reads() {
+        let can = |flags| RecordFields::from_wire(RecordKind::Can, ID_FD, flags);
+        let set = |fields| match fields {
+            RecordFields::Can { rtr, brs, esi, .. } => [rtr, brs, esi],
+            _ => unreachable!(),
+        };
+        assert_eq!(
+            CAN_RECORD_FLAGS,
+            [
+                ("RTR", CAN_FLAG_RTR),
+                ("BRS", CAN_FLAG_BRS),
+                ("ESI", CAN_FLAG_ESI)
+            ]
+        );
+        for (i, &(_, bit)) in CAN_RECORD_FLAGS.iter().enumerate() {
+            let mut expected = [false; 3];
+            expected[i] = true;
+            assert_eq!(set(can(bit)), expected);
+        }
+
+        assert_eq!(MODBUS_RECORD_FLAGS, [("CRC_VALID", FLAG_CRC_VALID)]);
+        assert!(matches!(
+            RecordFields::from_wire(RecordKind::Modbus, 0, FLAG_CRC_VALID),
+            RecordFields::Modbus {
+                crc_valid: true,
+                ..
+            }
+        ));
+
+        assert!(RAW_SERIAL_RECORD_FLAGS.is_empty());
+        assert_eq!(
+            RecordFields::from_wire(RecordKind::RawSerial, 1, 0x7F),
+            RecordFields::from_wire(RecordKind::RawSerial, 1, 0)
+        );
+    }
+
+    #[test]
+    fn bit_7_is_written_0_and_ignored_for_every_kind() {
+        for kind in [RecordKind::Can, RecordKind::Modbus, RecordKind::RawSerial] {
+            assert_eq!(
+                RecordFields::from_wire(kind, 1, FLAG_RESERVED_COMMON),
+                RecordFields::from_wire(kind, 1, 0),
+                "{kind:?}"
+            );
+            let mut out = Vec::new();
+            encode_record_into(&mut out, 0, 0, kind, 0xFF, 0, 1, &[0]);
+            assert_eq!(out[5], 0x7F, "{kind:?}");
+        }
+        let rtr = can_fields(false, true, false, false, 0xFF).to_wire().1;
+        assert_eq!(
+            rtr & FLAG_RESERVED_COMMON,
+            0,
+            "a length code past 15 stays in its field"
+        );
+    }
+
+    #[test]
+    fn a_can_frame_survives_its_record() {
+        let mut fd = CanFrame::data(1, 0x18DA_F110, true, true, true, vec![0xAA; 12]);
+        fd.esi = true;
+        for frame in [
+            CanFrame::data(0, 0x7E0, false, false, false, vec![1, 2, 3]),
+            CanFrame::remote(2, 0x7DF, false, 8),
+            fd,
+        ] {
+            let (id_flags, flags) = RecordFields::from_can(&frame, true).to_wire();
+            let fields = RecordFields::from_wire(RecordKind::Can, id_flags, flags);
+            assert_eq!(fields.to_can(frame.bus, frame.data.clone()), Some(frame));
+        }
+        let modbus = RecordFields::from_wire(RecordKind::Modbus, 0x0120, 0);
+        assert_eq!(modbus.to_can(0, Vec::new()), None);
+    }
+
+    #[test]
+    fn a_remote_record_survives_a_batch() {
+        let (id_flags, flags) = can_fields(false, true, false, false, 8).to_wire();
+        let mut records = Vec::new();
+        encode_record_into(&mut records, 0, 0, RecordKind::Can, flags, 0, id_flags, &[]);
+        let mut buf = encode_batch(1, 0, 1, &records);
+        let frame = take_frame(&mut buf).unwrap().unwrap();
+        let record = &parse_batch(&frame.body, MAX_BATCH_RECORDS)
+            .unwrap()
+            .unwrap()
+            .records[0];
+        assert_eq!(
+            RecordFields::from_wire(record.kind, record.id_flags, record.flags),
+            can_fields(false, true, false, false, 8)
+        );
     }
 
     #[test]

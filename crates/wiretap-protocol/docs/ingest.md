@@ -172,7 +172,7 @@ Each record:
 |--------|-------|---------------|----------------------------------------------|
 | 0      | 4     | `delta_ts_us` | u32 — µs offset from `base_ts_us`           |
 | 4      | 1     | `kind`        | u8 — 0 = CAN, 1 = Modbus, 2 = raw serial (v3); anything else is malformed |
-| 5      | 1     | `flags`       | u8 — per kind, below                        |
+| 5      | 1     | `flags`       | u8 — per kind, below; bit 7 reserved for every kind |
 | 6      | 1     | `bus`         | u8 — bus number (the device's interface index) |
 | 7      | 2     | `len`         | u16 — payload length, capped per kind       |
 | 9      | 4     | `id_flags`    | u32 — per kind, below; bit 31 is always dir (0 = rx, 1 = tx) |
@@ -180,9 +180,26 @@ Each record:
 
 | kind | `id_flags`                                              | `flags`             | payload, `len`                       |
 |------|---------------------------------------------------------|---------------------|--------------------------------------|
-| 0 CAN    | bits 0–28 arbitration id, bit 29 extended, bit 30 FD | 0                   | the frame's data, 0–64               |
+| 0 CAN    | bits 0–28 arbitration id, bit 29 extended, bit 30 FD | bit 0 RTR, bit 1 BRS, bit 2 ESI, bits 3–6 an RTR's length code | the frame's data, 0–64               |
 | 1 Modbus | bits 8–15 unit (slave address), bits 0–7 function code | bit 0 = CRC valid | the whole RTU message, CRC included, 0–256 |
 | 2 raw serial | bits 0–30 read sequence | 0 | the bytes one read returned, 1–256 |
+
+Bit 7 of `flags` is reserved for every kind: a sender writes 0 and a receiver
+ignores it, so it never makes a record malformed. Direction is `id_flags` bit
+31 for every kind, never a `flags` bit. A flag never repeats what the payload
+already says: a Modbus exception is the function code's `0x80` bit, so it has
+no flag of its own.
+
+A CAN record's `flags` say what `id_flags` has no room for: bit 0 a remote
+frame (RTR), bit 1 the bit rate switch (BRS) and bit 2 the error state
+indicator (ESI). Bits 3–6 carry the length code an RTR requests, 0–15 — the
+raw DLC code, not a byte count — and are 0 on a data frame. There is one
+encoding per frame: BRS and ESI are written only with `id_flags` bit 30 (FD),
+and the code only with RTR; a receiver reads what is there but ignores a BRS
+or ESI without FD and a code without RTR. The bits are `CanFlags`' RTR, BRS
+and ESI, the table storage and the desktop share. They were added in v3 with
+no version bump: no receiver checked a CAN record's `flags`, which was 0, and
+an older one ignores the byte.
 
 A Modbus record's `id_flags` is also the `id` the archive stores, so an
 inventory groups the archive by conversation — `0x0120` is unit 1, function
@@ -425,6 +442,9 @@ named here is the same bytes in both versions.
 - `CATALOG_STATUS` (`0x05`) was added later in v3, with no version bump: a v3
   server that predates it ignores it as an unknown type.
 - `CLOSE` (`0x85`) was added later in v3 too, with no version bump.
+- A CAN record's `flags` (RTR, BRS, ESI and an RTR's length code) were added
+  later in v3, with no version bump: the byte was 0, and a receiver that
+  predates them ignores it. A v2 batch's CAN record parses the same bits.
 - Record kind 2, raw serial, is new; in a v2 batch it stays malformed.
 
 **Upgrade order is gateway first, then capture daemons.** The gateway takes

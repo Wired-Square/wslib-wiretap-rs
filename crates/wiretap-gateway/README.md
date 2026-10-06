@@ -22,8 +22,9 @@ async runtime.
 
 Field names, types and order are the wire contract. No type refuses an unknown
 field, so a newer gateway can add one; fields a pre-0.1.4 gateway leaves out
-(`max_len`, `len`) parse as `None`. A request whose `protocol` is `None` leaves
-the key out, which the gateway reads as CAN.
+(`max_len`, `len`) parse as `None`, and the `/frames` row's `is_rtr`, `is_brs`
+and `is_esi`, which a gateway before schema v4 leaves out, as `false`. A request
+whose `protocol` is `None` leaves the key out, which the gateway reads as CAN.
 
 ## The admin API
 

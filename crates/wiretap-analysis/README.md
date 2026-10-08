@@ -37,6 +37,8 @@ checksum on most frame ids.
   the periods ids group into, the ids that start a cycle and the sequence after
   them, mux and burst timing, and which ids appear on more than one bus. Gaps
   never cross buses; one call per protocol
+- **`mirror_groups`** — ids whose changing payloads match within a time window,
+  scored from the sparser id's side
 
 Per-byte-column statistics live in [`wiretap-checksum`](../wiretap-checksum),
 beside the addressing they are indexed by; reach for them there directly. Roles

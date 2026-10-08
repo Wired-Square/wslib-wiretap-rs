@@ -33,6 +33,10 @@ checksum on most frame ids.
   frame's payload (`Sweep`), each a `wiretap-decode` `PayloadField` scored 0–100
   against its byte profile, best first, with the reasons as codes. Capping the
   list is the caller's
+- **`analyse_order`** — message order over a time-ordered capture, per bus:
+  the periods ids group into, the ids that start a cycle and the sequence after
+  them, mux and burst timing, and which ids appear on more than one bus. Gaps
+  never cross buses; one call per protocol
 
 Per-byte-column statistics live in [`wiretap-checksum`](../wiretap-checksum),
 beside the addressing they are indexed by; reach for them there directly. Roles

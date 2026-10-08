@@ -11,6 +11,8 @@
 //! - [`hypothesis`] — candidate bit fields over one frame's payload, ranked
 //!   against its byte roles. Reached by path: its `CandidateReason` is not
 //!   [`structure`]'s.
+//! - [`order`] — message order per bus: interval groups, cycle start ids and
+//!   sequences, mux and burst timing, and the ids seen on more than one bus.
 //!
 //! Per-byte-column statistics live in [`wiretap_checksum::columns`], beside the
 //! addressing they are indexed by. A caller that needs them
@@ -29,6 +31,7 @@
 
 pub mod checksum;
 pub mod hypothesis;
+pub mod order;
 pub mod roles;
 pub mod scan;
 pub mod structure;
@@ -37,6 +40,7 @@ pub use checksum::{
     checksum_evidence, checksum_evidence_with_columns, solve_targets, ChecksumEvidence,
     RankedTarget, Rejection,
 };
+pub use order::{analyse_order, BusOrder, OrderAnalysis, TimedFrame};
 pub use roles::{
     classify_columns, detect_mux, find_patterns, infer_endianness, is_mux_like_sequence,
     profile_bytes, ByteColumn, ByteProfile, ByteRole, Direction, Endianness, Loop,

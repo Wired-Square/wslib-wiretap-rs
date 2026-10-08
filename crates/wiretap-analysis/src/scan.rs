@@ -145,7 +145,7 @@ impl DiscoveredChecksum {
 /// A standard and an extended id sharing a number are different frames, so the
 /// pair is the identity — named rather than a positional `(u32, bool)`, because
 /// a caller passing the wrong `bool` should not be silent.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FrameKey {
     pub frame_id: u32,

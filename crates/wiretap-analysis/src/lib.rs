@@ -14,6 +14,7 @@
 //! - [`order`] — message order per bus: interval groups, cycle start ids and
 //!   sequences, mux and burst timing, and the ids seen on more than one bus.
 //! - [`mirror`] — mirror groups: ids carrying the same changing payload together.
+//! - [`notes`] — what a byte profile says, as note codes for the caller to word.
 //!
 //! Per-byte-column statistics live in [`wiretap_checksum::columns`], beside the
 //! addressing they are indexed by. A caller that needs them
@@ -33,6 +34,7 @@
 pub mod checksum;
 pub mod hypothesis;
 pub mod mirror;
+pub mod notes;
 pub mod order;
 pub mod roles;
 pub mod scan;
@@ -43,6 +45,7 @@ pub use checksum::{
     RankedTarget, Rejection,
 };
 pub use mirror::{mirror_groups, MirrorGroup, TimedPayload, DEFAULT_MIRROR_WINDOW_US};
+pub use notes::{byte_notes, ByteNote, ByteNotes, MuxCaseNotes, StaticByte};
 pub use order::{analyse_order, BusOrder, OrderAnalysis, TimedFrame};
 pub use roles::{
     classify_columns, detect_mux, find_patterns, infer_endianness, is_mux_like_sequence,

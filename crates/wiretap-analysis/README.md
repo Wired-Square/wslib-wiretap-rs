@@ -39,6 +39,8 @@ checksum on most frame ids.
   never cross buses; one call per protocol
 - **`mirror_groups`** — ids whose changing payloads match within a time window,
   scored from the sparser id's side
+- **`byte_notes`** — a byte profile's notes as codes (`ByteNote`), frame and
+  mux-case level; the wording is the caller's
 
 Per-byte-column statistics live in [`wiretap-checksum`](../wiretap-checksum),
 beside the addressing they are indexed by; reach for them there directly. Roles
@@ -47,7 +49,9 @@ their own.
 
 The classifier's thresholds are the desktop's TypeScript ones, pinned by the
 golden fixture in `tests/fixtures/byte_roles`; the ranking's weights are pinned
-the same way in `tests/fixtures/hypothesis`.
+the same way in `tests/fixtures/hypothesis`, and message order, mirrors and notes
+in `tests/fixtures/analysis`, each difference from the TypeScript named in its
+test.
 
 ## Using it
 

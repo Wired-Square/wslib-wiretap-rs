@@ -66,7 +66,7 @@ what the protocol is and what part of it this crate implements.
 ## Using it
 
 ```toml
-wiretap-protocol = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.1.5" }
+wiretap-protocol = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.2.0" }
 ```
 
 Either URL form works, and the workspace README says why `https` is usually the one a consumer

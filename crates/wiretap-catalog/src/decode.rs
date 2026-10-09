@@ -390,32 +390,11 @@ fn frame_bit_order(catalog: &Catalog, frame: &Frame) -> BitOrder {
     {
         return BitOrder::Coils;
     }
+    let defaults = catalog.derived_defaults();
     let (endianness, word_order) = match frame.protocol {
-        Protocol::Modbus => {
-            let be = catalog
-                .modbus
-                .as_ref()
-                .and_then(|c| c.default_byte_order)
-                .unwrap_or(Endianness::Big);
-            let wo = catalog.modbus.as_ref().and_then(|c| c.default_word_order);
-            (be, wo)
-        }
-        Protocol::Can => {
-            let be = catalog
-                .can
-                .as_ref()
-                .and_then(|c| c.default_byte_order)
-                .unwrap_or(Endianness::Little);
-            (be, None)
-        }
-        Protocol::Serial => {
-            let be = catalog
-                .serial
-                .as_ref()
-                .and_then(|c| c.byte_order)
-                .unwrap_or(Endianness::Little);
-            (be, None)
-        }
+        Protocol::Modbus => (defaults.modbus_byte_order, Some(defaults.modbus_word_order)),
+        Protocol::Can => (defaults.can_byte_order, None),
+        Protocol::Serial => (defaults.serial_byte_order, None),
     };
     BitOrder::Registers {
         endianness,

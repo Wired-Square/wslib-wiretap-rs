@@ -32,6 +32,7 @@ pub mod dbc;
 pub mod decode;
 pub mod edit;
 pub mod framing_detect;
+pub mod layout;
 pub mod migrate;
 pub mod mirror;
 pub mod modbus;
@@ -42,6 +43,7 @@ pub mod mux_case;
 pub mod parse;
 pub mod validate;
 
+pub use layout::{frame_layout, FrameLayout, LayoutRange, RangeKind};
 pub use mirror::{MirrorTracker, MirrorVerdict};
 pub use modbus_rtu_stream::{
     CrcPolicy, Direction, DirectionBasis, LengthRule, ModbusRtuMessage, ModbusRtuOptions,
@@ -56,5 +58,6 @@ pub use model::{
     SerialConfig, Signal, SignalFormat, TunnelProtocol, UnknownRegisterType, ValidationError,
     WriteBank,
 };
+pub use model::{EffectiveDefaults, NAME_KEYED_FRAME_ID};
 pub use mux_case::{compare_mux_case_keys, is_mux_case_key};
 pub use parse::{rtu_rules, CatalogError, RtuRules, RtuRulesError};

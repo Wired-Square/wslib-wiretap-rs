@@ -450,6 +450,7 @@ struct InheritedMeta {
 struct Resolution {
     signals: Vec<Signal>,
     mux: Option<Mux>,
+    mux_inherited: bool,
     mirror_of: Option<String>,
     copy_from: Option<String>,
     inherited: InheritedMeta,
@@ -537,6 +538,7 @@ fn resolve_mirror_inheritance(body: &Value, all_frames: &Value) -> Resolution {
     Resolution {
         signals: result_signals,
         mux: parse_mux(mux, mux_inherited),
+        mux_inherited,
         mirror_of,
         copy_from,
         inherited,
@@ -894,6 +896,12 @@ impl Catalog {
                 {
                     inherited_fields.push("fd".to_string());
                 }
+                if resolved.signals.iter().any(|s| s.inherited) {
+                    inherited_fields.push("signals".to_string());
+                }
+                if resolved.mux_inherited {
+                    inherited_fields.push("mux".to_string());
+                }
 
                 frames.push(Frame {
                     key: id_key.clone(),
@@ -925,20 +933,18 @@ impl Catalog {
             }
         }
 
-        // Serial frames (no inheritance).
+        // Serial frames (no inheritance). One keyed by a name has no numeric id.
         if let Some(table) = serial_frames.as_table() {
             for (id_key, body) in table {
                 if id_key == "config" {
                     continue;
                 }
-                let Some(num_id) = parse_id(id_key) else {
-                    continue;
-                };
+                let num_id = parse_id(id_key);
                 frames.push(Frame {
                     key: id_key.clone(),
-                    frame_id: num_id,
+                    frame_id: num_id.unwrap_or(NAME_KEYED_FRAME_ID),
                     protocol: Protocol::Serial,
-                    name: None,
+                    name: num_id.is_none().then(|| id_key.clone()),
                     length: as_u32(body, "length").unwrap_or(0),
                     transmitter: as_str(body, "transmitter").map(str::to_string),
                     interval: frame_interval(body),
@@ -1032,6 +1038,8 @@ impl Catalog {
             }
         }
 
+        let effective_defaults =
+            EffectiveDefaults::of(can.as_ref(), serial.as_ref(), modbus.as_ref());
         Ok(Catalog {
             meta,
             protocol,
@@ -1040,12 +1048,23 @@ impl Catalog {
             modbus,
             frames,
             nodes,
+            effective_defaults,
         })
     }
 
-    /// Find a parsed frame by its numeric id.
+    /// Find a parsed frame by its numeric id, in any protocol. A serial frame
+    /// keyed by a name has none, so is never found here.
     pub fn frame(&self, id: u32) -> Option<&Frame> {
-        self.frames.iter().find(|f| f.frame_id == id)
+        self.frames
+            .iter()
+            .find(|f| f.frame_id == id && !f.is_keyed_by_name())
+    }
+
+    /// Find a frame by its identity: its protocol and authored table key.
+    pub fn frame_by_key(&self, protocol: Protocol, key: &str) -> Option<&Frame> {
+        self.frames
+            .iter()
+            .find(|f| f.protocol == protocol && f.key == key)
     }
 
     /// Find the Modbus register frame at protocol (wire) address `register`,

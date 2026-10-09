@@ -512,7 +512,7 @@ pub struct Frame {
     /// `frame_id`.
     pub key: String,
     /// Numeric identifier: CAN arbitration ID, serial frame id, or Modbus
-    /// register number.
+    /// register number. [`NAME_KEYED_FRAME_ID`] for a serial frame keyed by a name.
     pub frame_id: u32,
     pub protocol: Protocol,
     /// The catalogue table key, when it carries meaning (e.g. a Modbus frame's
@@ -570,12 +570,22 @@ pub struct Frame {
     /// a `copy`/`mirror_of` source, or auto-detection) rather than set
     /// explicitly on this frame. Drives the editor's "(inherited)" labels.
     /// Possible entries: `length`, `transmitter`, `interval`, `extended`,
-    /// `fd`, `deviceAddress`, `registerBase`.
+    /// `fd`, `signals` (some are [`Signal::inherited`]), `mux` (all of it, from
+    /// a `mirror_of` source), `deviceAddress`, `registerBase`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inherited_fields: Vec<String>,
 }
 
+/// The `frame_id` of a serial frame keyed by a name, such as
+/// `[frame.serial.heartbeat]`, which has no numeric id.
+pub const NAME_KEYED_FRAME_ID: u32 = u32::MAX;
+
 impl Frame {
+    /// Whether this is a serial frame keyed by a name rather than an id.
+    pub fn is_keyed_by_name(&self) -> bool {
+        self.protocol == Protocol::Serial && crate::parse::parse_id(&self.key).is_none()
+    }
+
     /// Every directly defined signal: the frame's own, then each mux case's depth first.
     pub fn own_signals(&self) -> Vec<&Signal> {
         let mut out = Vec::new();
@@ -766,6 +776,60 @@ pub struct NodeDef {
     pub notes: Vec<String>,
 }
 
+/// The defaults decode applies where the catalogue sets none.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EffectiveDefaults {
+    pub can_byte_order: Endianness,
+    pub serial_byte_order: Endianness,
+    pub modbus_byte_order: Endianness,
+    pub modbus_word_order: Endianness,
+    /// 0 unless `[meta.modbus] register_base = 1`.
+    pub modbus_register_base: u8,
+}
+
+impl EffectiveDefaults {
+    pub fn of(
+        can: Option<&CanConfig>,
+        serial: Option<&SerialConfig>,
+        modbus: Option<&ModbusConfig>,
+    ) -> Self {
+        Self {
+            can_byte_order: can
+                .and_then(|c| c.default_byte_order)
+                .unwrap_or(Endianness::Little),
+            serial_byte_order: serial
+                .and_then(|c| c.byte_order)
+                .unwrap_or(Endianness::Little),
+            modbus_byte_order: modbus
+                .and_then(|c| c.default_byte_order)
+                .unwrap_or(Endianness::Big),
+            modbus_word_order: modbus
+                .and_then(|c| c.default_word_order)
+                .unwrap_or(Endianness::Big),
+            modbus_register_base: modbus.and_then(|c| c.register_base).unwrap_or(0),
+        }
+    }
+}
+
+impl Catalog {
+    /// The defaults decode applies, derived from the configs rather than read
+    /// from [`Catalog::effective_defaults`], which a deserialised model may lack.
+    pub fn derived_defaults(&self) -> EffectiveDefaults {
+        EffectiveDefaults::of(
+            self.can.as_ref(),
+            self.serial.as_ref(),
+            self.modbus.as_ref(),
+        )
+    }
+}
+
+impl Default for EffectiveDefaults {
+    fn default() -> Self {
+        Self::of(None, None, None)
+    }
+}
+
 /// A fully parsed, resolved catalogue.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -785,6 +849,9 @@ pub struct Catalog {
     /// Network nodes/peers from the `[node]` table, in key order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub nodes: Vec<NodeDef>,
+    /// The served copy of [`Catalog::derived_defaults`], for consumers.
+    #[serde(default)]
+    pub effective_defaults: EffectiveDefaults,
 }
 
 /// A single validation finding (field path + human message).

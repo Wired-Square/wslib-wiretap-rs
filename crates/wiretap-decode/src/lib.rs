@@ -12,13 +12,16 @@
 //! the product is exact.
 //!
 //! [`frame_id`] reads a serial message's frame id out of its bytes and formats
-//! one for display, [`hex`] reads a typed hex byte string, and [`field`] is a
-//! bit field cut from a payload without a catalogue.
+//! one for display, [`hex`] reads a typed hex byte string, [`field`] is a
+//! bit field cut from a payload without a catalogue, and [`byte_name()`] the
+//! name such a field is saved under.
 
+mod byte_name;
 pub mod field;
 pub mod frame_id;
 pub mod hex;
 
+pub use byte_name::{byte_name, parse_byte_name};
 pub use field::{PayloadField, ScaledField};
 
 use rust_decimal::prelude::FromPrimitive;

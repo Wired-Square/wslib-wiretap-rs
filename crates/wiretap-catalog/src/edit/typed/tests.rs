@@ -202,24 +202,21 @@ fn a_serial_discovery_export_is_clean() {
                 fields: BTreeMap::from([
                     (
                         "id".to_string(),
-                        HeaderField {
-                            mask: 0xFFFF00,
-                            shift: None,
-                            format: None,
-                            endianness: Some(Endianness::Little),
+                        HeaderFieldFields {
+                            mask: Mask::Value(0xFFFF00),
+                            byte_order: Some(Endianness::Little),
+                            ..Default::default()
                         },
                     ),
                     (
                         "source_address".to_string(),
-                        HeaderField {
-                            mask: 0xFF,
-                            shift: None,
-                            format: None,
-                            endianness: None,
+                        HeaderFieldFields {
+                            mask: Mask::Value(0xFF),
+                            ..Default::default()
                         },
                     ),
                 ]),
-                checksum: Some(ChecksumConfig {
+                checksum: Some(SerialChecksumFields {
                     algorithm: "xor".into(),
                     start_byte: -1,
                     byte_length: 1,
@@ -384,8 +381,21 @@ fn one_note_is_a_string_and_more_are_an_array() {
         })
     };
     assert!(!written(&[]).contains("notes"));
-    assert!(written(&["one"]).contains(r#"notes = "one""#));
+    assert!(!written(&[" ", ""]).contains("notes"));
+    assert!(written(&[" one ", " "]).contains(r#"notes = "one""#));
     assert!(written(&["one", "two"]).contains(r#"notes = ["one", "two"]"#));
+}
+
+#[test]
+fn signed_false_is_not_written() {
+    let written = |signed| {
+        signal_text(SignalFields {
+            signed: Some(signed),
+            ..sig("s", 0, 8)
+        })
+    };
+    assert!(!written(false).contains("signed"));
+    assert!(written(true).contains("signed = true"));
 }
 
 #[test]
@@ -476,14 +486,14 @@ fn keys_of_another_protocol_are_not_written() {
 fn header_field_defaults_are_not_written_and_masks_are_hex() {
     let text = build(&[EditOp::SetCanConfig {
         config: CanConfigFields {
-            frame_id_mask: Some(0x1FFF_FF00),
+            frame_id_mask: Some(Mask::Text(" 1fffff00 ".into())),
             fields: BTreeMap::from([(
-                "source".to_string(),
-                HeaderField {
-                    mask: 0xFF,
+                " source ".to_string(),
+                HeaderFieldFields {
+                    mask: Mask::Text("0xFF".into()),
                     shift: Some(0),
                     format: Some("hex".into()),
-                    endianness: Some(Endianness::Big),
+                    byte_order: Some(Endianness::Big),
                 },
             )]),
             ..Default::default()
@@ -500,7 +510,7 @@ fn a_checksum_writes_big_endian_only_when_true() {
     let written = |big_endian| {
         build(&[EditOp::SetSerialConfig {
             config: SerialConfigFields {
-                checksum: Some(ChecksumConfig {
+                checksum: Some(SerialChecksumFields {
                     algorithm: "sum8".into(),
                     start_byte: -1,
                     byte_length: 1,
@@ -541,6 +551,166 @@ fn config_byte_order_replaces_its_legacy_key() {
     assert_eq!(
         text,
         "[meta.can]\ndefault_byte_order = \"little\"\n\n[meta.modbus]\ndefault_byte_order = \"little\"\n"
+    );
+}
+
+#[test]
+fn can_config_byte_order_at_decode_default_is_written_only_where_the_file_states_one() {
+    let little = || EditOp::SetCanConfig {
+        config: CanConfigFields {
+            default_byte_order: Some(Endianness::Little),
+            default_interval: Some(100),
+            ..Default::default()
+        },
+    };
+    assert_eq!(build(&[little()]), "[meta.can]\ndefault_interval = 100\n");
+    let stated = edit("[meta.can]\ndefault_byte_order = \"big\"\n", little());
+    assert!(
+        stated.contains("default_byte_order = \"little\""),
+        "{stated}"
+    );
+}
+
+#[test]
+fn an_unparseable_mask_refuses_the_op() {
+    let op = |mask: &str| EditOp::SetSerialConfig {
+        config: SerialConfigFields {
+            frame_id_mask: Some(Mask::Text(mask.into())),
+            ..Default::default()
+        },
+    };
+    assert_eq!(
+        apply_edit("", op("0xZZ")),
+        Err("mask '0xZZ' is not hexadecimal".to_string())
+    );
+    assert!(!build(&[op(" ")]).contains("frame_id_mask"));
+}
+
+#[test]
+fn a_serial_checksum_is_snake_case_and_keeps_an_absent_calc_end_byte_absent() {
+    let ops: Vec<EditOp> = serde_json::from_value(json!([
+        { "op": "SetSerialConfig", "config": { "checksum": { "algorithm": "sum8", "start_byte": -1 } } },
+        { "op": "SetSerialConfig", "config": { "checksum": { "algorithm": "sum8", "startByte": -2 } } },
+    ]))
+    .unwrap();
+    let text = build(&ops[..1]);
+    assert!(!text.contains("calc_end_byte"), "{text}");
+    assert!(build(&ops).contains("start_byte = -2"));
+}
+
+// ── frames ────────────────────────────────────────────────────────────────────
+
+const COPIED: &str = r#"[meta]
+name = "d"
+version = 1
+
+[meta.can]
+default_extended = false
+default_interval = 100
+
+[frame.can.0x100]
+length = 4
+transmitter = "BMS"
+
+[[frame.can.0x100.signals]]
+name = "temp"
+start_bit = 0
+bit_length = 16
+
+[frame.can.0x100.mux]
+name = "m"
+start_bit = 16
+bit_length = 8
+"#;
+
+#[test]
+fn a_frame_does_not_write_what_its_source_or_the_defaults_give() {
+    let resolved = FrameFields {
+        length: Some(4),
+        transmitter: Some("BMS".into()),
+        interval_ms: Some(100),
+        extended: Some(false),
+        fd: Some(false),
+        mirror_of: Some("0x100".into()),
+        ..Default::default()
+    };
+    let text = edit(COPIED, frame(Protocol::Can, "0x200", resolved.clone()));
+    let mirror = text.split_once("[frame.can.0x200]").unwrap().1;
+    assert_eq!(mirror.trim(), r#"mirror_of = "0x100""#);
+
+    let overridden = FrameFields {
+        transmitter: Some("VCU".into()),
+        interval_ms: Some(50),
+        extended: Some(true),
+        ..resolved
+    };
+    let text = edit(COPIED, frame(Protocol::Can, "0x200", overridden));
+    let f = assert_clean(&text).frames[1].clone();
+    assert_eq!(
+        (
+            f.transmitter.as_deref(),
+            f.interval,
+            f.is_extended,
+            f.length
+        ),
+        (Some("VCU"), Some(50), Some(true), 4)
+    );
+}
+
+#[test]
+fn a_frame_key_is_trimmed_and_a_blank_one_refused() {
+    let text = build(&[can_frame(" 0x100 ", 8)]);
+    assert!(text.contains("[frame.can.0x100]"), "{text}");
+    assert_eq!(
+        apply_edit("", can_frame(" ", 8)),
+        Err("a frame key is required".to_string())
+    );
+}
+
+#[test]
+fn add_frame_refuses_an_existing_key_and_seeds_only_modbus() {
+    let add = |protocol, key: &str| EditOp::AddFrame {
+        protocol,
+        key: key.into(),
+        frame: FrameFields::default(),
+    };
+    assert_eq!(
+        apply_edit(ONE_SIGNAL, add(Protocol::Can, "0x100")),
+        Err("frame '0x100' already exists".to_string())
+    );
+    assert!(!build(&[add(Protocol::Can, "0x200")]).contains("signals"));
+    let text = build(&[add(Protocol::Modbus, "level")]);
+    assert!(
+        text.contains("name = \"level\"\nstart_bit = 0\nbit_length = 16"),
+        "{text}"
+    );
+}
+
+// ── muxes ─────────────────────────────────────────────────────────────────────
+
+#[test]
+fn a_mux_needs_its_frame_and_parent_mux_but_not_its_case() {
+    let on = |owner: &[&str]| apply_edit(ONE_SIGNAL, mux(owner, "", 0, 8));
+    assert_eq!(
+        on(&["frame", "serial", "0x100"]),
+        Err("'frame.serial.0x100' does not exist".to_string())
+    );
+    assert_eq!(
+        on(&["frame", "can", "0x100", "mux", "1"]),
+        Err("'frame.can.0x100.mux' does not exist".to_string())
+    );
+    let text = apply_edits(
+        ONE_SIGNAL,
+        &[
+            mux(&["frame", "can", "0x100"], "", 16, 8),
+            mux(&["frame", "can", "0x100", "mux", "1, 2"], "", 24, 0),
+        ],
+    )
+    .unwrap();
+    assert!(text.contains("name = \"mux_256_16_8\""), "{text}");
+    assert!(
+        text.contains("name = \"mux_256_1_2_24_0\"\nstart_bit = 24\nbit_length = 0"),
+        "{text}"
     );
 }
 

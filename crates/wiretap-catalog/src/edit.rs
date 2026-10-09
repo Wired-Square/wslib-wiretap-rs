@@ -16,7 +16,8 @@
 //! and rename-with-reference-rewrite.
 //!
 //! The typed ops ([`EditOp::UpsertSignal`], [`EditOp::SetFrame`], …) carry those
-//! rules here instead, for a caller that builds a catalogue rather than edits one.
+//! rules here instead: a caller sends form values and the op decides what is
+//! written. Notes are tidied by one rule wherever they are written, generic ops too.
 
 use std::cmp::Ordering;
 
@@ -28,8 +29,8 @@ use crate::model::Protocol;
 
 mod typed;
 pub use typed::{
-    CanConfigFields, FrameFields, MetaFields, ModbusConfigFields, MuxFields, SerialConfigFields,
-    SignalFields,
+    mux_name, CanConfigFields, FrameFields, HeaderFieldFields, Mask, MetaFields,
+    ModbusConfigFields, MuxFields, SerialChecksumFields, SerialConfigFields, SignalFields,
 };
 
 type JsonMap = Map<String, Json>;
@@ -134,6 +135,13 @@ pub enum EditOp {
         key: String,
         #[serde(default)]
         rename_from: Option<String>,
+        frame: FrameFields,
+    },
+    /// Create a frame, refusing an existing key. A Modbus frame is seeded with
+    /// one signal over its registers, named after the key.
+    AddFrame {
+        protocol: Protocol,
+        key: String,
         frame: FrameFields,
     },
     /// Create or update the `mux` of the frame or mux case at `owner_path`.
@@ -394,15 +402,16 @@ fn apply_op(doc: &mut DocumentMut, op: &EditOp) -> Result<(), String> {
             rename_from,
             frame,
         } => typed::set_frame(doc, *protocol, key, rename_from.as_deref(), frame)?,
-        EditOp::SetMux { owner_path, mux } => typed::set_table(
-            doc,
-            owner_path.iter().map(String::as_str).chain(["mux"]),
-            mux.record(),
-        ),
+        EditOp::AddFrame {
+            protocol,
+            key,
+            frame,
+        } => typed::add_frame(doc, *protocol, key, frame)?,
+        EditOp::SetMux { owner_path, mux } => typed::set_mux(doc, owner_path, mux)?,
         EditOp::SetMeta { meta } => typed::set_table(doc, ["meta"], meta.record()),
-        EditOp::SetCanConfig { config } => typed::set_table(doc, ["meta", "can"], config.record()),
+        EditOp::SetCanConfig { config } => typed::set_can_config(doc, config)?,
         EditOp::SetSerialConfig { config } => {
-            typed::set_table(doc, ["meta", "serial"], config.record())
+            typed::set_table(doc, ["meta", "serial"], config.record()?)
         }
         EditOp::SetModbusConfig { config } => {
             typed::set_table(doc, ["meta", "modbus"], config.record())
@@ -663,6 +672,9 @@ fn apply_object(tbl: &mut Table, value: &JsonMap, managed_keys: &[String]) {
 }
 
 fn set_key(tbl: &mut Table, key: &str, json: &Json) {
+    if let Some(notes) = (key == "notes").then(|| note_texts(json)).flatten() {
+        return typed::write_field(tbl, key, typed::notes(notes));
+    }
     match json {
         Json::Object(obj) => {
             let existing = tbl
@@ -680,6 +692,14 @@ fn set_key(tbl: &mut Table, key: &str, json: &Json) {
             tbl.remove(key);
         }
         _ => set_scalar(tbl, key, json),
+    }
+}
+
+fn note_texts(json: &Json) -> Option<Vec<&str>> {
+    match json {
+        Json::String(s) => Some(vec![s]),
+        Json::Array(items) => items.iter().map(Json::as_str).collect(),
+        _ => None,
     }
 }
 

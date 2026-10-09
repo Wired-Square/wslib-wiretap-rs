@@ -16,6 +16,7 @@ use crate::modbus_rtu_stream::{
     rtu_options_for, LengthRule, ModbusRtuOptions, Selector, VendorLen,
 };
 use crate::model::*;
+use crate::mux_case::is_mux_case_key;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CatalogError {
@@ -248,26 +249,6 @@ fn normalise_signals(arr: Option<&Value>, inherited: bool) -> Vec<Signal> {
     arr.and_then(Value::as_array)
         .map(|a| a.iter().map(|s| normalise_signal(s, inherited)).collect())
         .unwrap_or_default()
-}
-
-/// Whether a mux table key denotes a case (numeric, range `0-3`, or list
-/// `1,2,5`) rather than a reserved key. Mirrors `isMuxCaseKey`.
-fn is_mux_case_key(key: &str) -> bool {
-    if matches!(key, "name" | "start_bit" | "bit_length" | "default") {
-        return false;
-    }
-    key.split(',').all(|part| {
-        let part = part.trim();
-        match part.split_once('-') {
-            Some((a, b)) => {
-                !a.is_empty()
-                    && a.chars().all(|c| c.is_ascii_digit())
-                    && !b.is_empty()
-                    && b.chars().all(|c| c.is_ascii_digit())
-            }
-            None => !part.is_empty() && part.chars().all(|c| c.is_ascii_digit()),
-        }
-    })
 }
 
 /// Port of `parseMux`.

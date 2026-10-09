@@ -51,6 +51,7 @@ pub use frame::{
 };
 pub use notes::{ChecksumNote, NoteSpec, ALL_NOTES};
 pub use sampling::{deduplicate, diverse_samples, strided_samples};
+pub use solve::{algorithm_widths, AlgorithmWidth};
 pub use solve::{
     all_algorithm_ids, solve_additive, solve_all, solve_crc, AdditiveOp, ChecksumSpecification,
     CrcAlternative, CrcParameters, CrcSolveOptions, SolveTarget, SolvedChecksum, CRC_CUSTOM,

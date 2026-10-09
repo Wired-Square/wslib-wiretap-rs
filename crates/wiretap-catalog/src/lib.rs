@@ -38,6 +38,7 @@ pub mod modbus;
 pub mod modbus_rtu_stream;
 pub mod modbus_rtu_tap;
 pub mod model;
+pub mod mux_case;
 pub mod parse;
 pub mod validate;
 
@@ -55,4 +56,5 @@ pub use model::{
     SerialConfig, Signal, SignalFormat, TunnelProtocol, UnknownRegisterType, ValidationError,
     WriteBank,
 };
+pub use mux_case::{compare_mux_case_keys, is_mux_case_key};
 pub use parse::{rtu_rules, CatalogError, RtuRules, RtuRulesError};

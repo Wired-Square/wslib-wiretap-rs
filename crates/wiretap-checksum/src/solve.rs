@@ -80,6 +80,30 @@ pub fn all_algorithm_ids() -> Vec<&'static str> {
         .collect()
 }
 
+/// One stored algorithm id and how many bytes its checksum occupies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlgorithmWidth {
+    pub id: &'static str,
+    /// `None` for the two parameterised ids, [`CRC_CUSTOM`] and [`SUM8_NEGATED`],
+    /// whose declaration carries its own `byte_length`.
+    pub output_bytes: Option<usize>,
+}
+
+/// [`all_algorithm_ids`], in the same order, each with its fixed width.
+pub fn algorithm_widths() -> Vec<AlgorithmWidth> {
+    all_algorithm_ids()
+        .into_iter()
+        .map(|id| AlgorithmWidth {
+            id,
+            output_bytes: id
+                .parse::<ChecksumAlgorithm>()
+                .ok()
+                .map(|a| a.output_bytes()),
+        })
+        .collect()
+}
+
 /// Conventional initial values reported as alternatives.
 const CONVENTIONAL_INITS: [u16; 2] = [0x0000, 0xFFFF];
 

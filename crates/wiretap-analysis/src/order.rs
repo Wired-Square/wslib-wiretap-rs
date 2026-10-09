@@ -9,7 +9,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::roles::{detect_mux, MuxDetection};
 use crate::scan::FrameKey;
@@ -140,7 +140,7 @@ pub struct BurstTiming {
     pub flags: Vec<BurstFlag>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum BurstFlag {
     VariableLength,

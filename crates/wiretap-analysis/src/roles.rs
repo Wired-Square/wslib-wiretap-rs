@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use wiretap_checksum::columns::{analyse_columns_from, Anchor, ColumnStats};
 
 pub mod multi;
@@ -59,7 +59,7 @@ pub enum ByteRole {
 }
 
 /// Which way a counter steps.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Direction {
     Up,
@@ -67,7 +67,7 @@ pub enum Direction {
 }
 
 /// Which way a sensor trends; `Mixed` oscillates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Trend {
     Increasing,
@@ -76,7 +76,7 @@ pub enum Trend {
 }
 
 /// The range a looping counter cycles through; `modulo` is `max - min + 1`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Loop {
     pub min: u8,
     pub max: u8,

@@ -1,7 +1,7 @@
 //! Byte notes: what a [`ByteProfile`] says, as codes for the caller to word, frame
 //! first and then each mux case. Which notes a view shows is the caller's choice.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::roles::{
     ByteColumn, ByteProfile, ByteRole, Direction, Endianness, Loop, MultiBytePattern, MuxSelector,
@@ -9,7 +9,7 @@ use crate::roles::{
 };
 
 /// One note, in the order the desktop shows them.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(
     tag = "code",
     rename_all = "camelCase",
@@ -72,7 +72,7 @@ pub enum ByteNote {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StaticByte {
     pub position: usize,
     pub value: u8,

@@ -510,7 +510,10 @@ impl MetaFields {
         vec![
             ("name", val(self.name.as_str())),
             ("version", val(i64::from(self.version))),
-            ("default_frame", opt(self.default_frame.map(protocol_key))),
+            (
+                "default_frame",
+                opt(self.default_frame.map(Protocol::as_str)),
+            ),
         ]
     }
 }
@@ -573,18 +576,10 @@ impl ModbusConfigFields {
     }
 }
 
-fn protocol_key(p: Protocol) -> &'static str {
-    match p {
-        Protocol::Can => "can",
-        Protocol::Serial => "serial",
-        Protocol::Modbus => "modbus",
-    }
-}
-
 fn protocol_of(key: &str) -> Option<Protocol> {
     [Protocol::Can, Protocol::Serial, Protocol::Modbus]
         .into_iter()
-        .find(|p| protocol_key(*p) == key)
+        .find(|p| p.as_str() == key)
 }
 
 // ── writing ───────────────────────────────────────────────────────────────────
@@ -742,7 +737,7 @@ fn frame_key(key: &str) -> Result<&str, String> {
 }
 
 fn frame_path(protocol: Protocol, key: &str) -> [String; 3] {
-    ["frame", protocol_key(protocol), key].map(String::from)
+    ["frame", protocol.as_str(), key].map(String::from)
 }
 
 pub(super) fn set_frame(
@@ -755,7 +750,7 @@ pub(super) fn set_frame(
     let key = frame_key(key)?;
     op_upsert_frame(
         doc,
-        protocol_key(protocol),
+        protocol.as_str(),
         key,
         &Default::default(),
         &[],

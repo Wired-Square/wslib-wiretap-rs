@@ -22,12 +22,23 @@ use crate::modbus_rtu_stream::LengthRule;
 pub use wiretap_decode::Endianness;
 
 /// Which wire protocol a frame/catalogue uses.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Protocol {
     Can,
     Serial,
     Modbus,
+}
+
+impl Protocol {
+    /// The same lowercase spelling serde writes, and a frame table's key.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Protocol::Can => "can",
+            Protocol::Serial => "serial",
+            Protocol::Modbus => "modbus",
+        }
+    }
 }
 
 /// Modbus register class — determines the function code the poller uses.

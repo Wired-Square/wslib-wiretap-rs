@@ -8,6 +8,7 @@ description = "Payload analysis for WireTAP frames: the identification pass that
 readme = "README.md"
 
 [dependencies]
+wiretap-catalog = { path = "../wiretap-catalog" }
 wiretap-checksum = { path = "../wiretap-checksum" }
 wiretap-decode = { path = "../wiretap-decode" }
 rayon = "1"

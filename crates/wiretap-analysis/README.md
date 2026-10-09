@@ -41,6 +41,12 @@ checksum on most frame ids.
   scored from the sparser id's side
 - **`byte_notes`** — a byte profile's notes as codes (`ByteNote`), frame and
   mux-case level; the wording is the caller's
+- **`draft::Draft`** — a catalogue in the making, one frame per protocol and
+  key: Payload Changes (`apply_profiles`) and Frame Order (`apply_orders`)
+  merged in either order, and `to_ops`, the typed `wiretap-catalog` edit ops
+  that write it, with hex signals over every byte nothing else claims
+  (`default_signals`). `draft::candidate_signals` lists the `byte_*` fields
+  worth charting over a byte range
 
 Per-byte-column statistics live in [`wiretap-checksum`](../wiretap-checksum),
 beside the addressing they are indexed by; reach for them there directly. Roles

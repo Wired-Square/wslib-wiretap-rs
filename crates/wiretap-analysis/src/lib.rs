@@ -16,6 +16,9 @@
 //! - [`mirror`] — mirror groups: ids carrying the same changing payload together.
 //! - [`notes`] — what a byte profile says, as note codes for the caller to word.
 //! - [`summary`] — the counts a Payload Changes or Frame Order report sums up.
+//! - [`draft`] — profiles and message order merged per protocol and frame, and
+//!   the typed [`wiretap_catalog`] ops that write them; the `byte_*` signals
+//!   offered for a frame without a catalogue. Reached by path.
 //!
 //! Per-byte-column statistics live in [`wiretap_checksum::columns`], beside the
 //! addressing they are indexed by. A caller that needs them
@@ -33,6 +36,7 @@
 //! [`ColumnStats`]: wiretap_checksum::columns::ColumnStats
 
 pub mod checksum;
+pub mod draft;
 pub mod hypothesis;
 pub mod mirror;
 pub mod notes;

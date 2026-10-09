@@ -3,12 +3,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::{classify_columns, find_patterns, ByteColumn, MultiBytePattern};
 
 /// The bytes that select a mux case.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum MuxSelector {
     /// Byte 0.

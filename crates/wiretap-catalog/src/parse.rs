@@ -427,7 +427,7 @@ fn parse_nodes(root: &Value) -> Vec<NodeDef> {
 }
 
 /// Frame poll/tx interval: the canonical top-level `interval_ms` (or `interval`),
-/// falling back to the legacy `tx.interval_ms` / `tx.interval`.
+/// falling back to the legacy `tx.interval_ms` / `tx.interval` / `tx_interval_ms`.
 fn frame_interval(body: &Value) -> Option<u64> {
     as_i64(body, "interval_ms")
         .or_else(|| as_i64(body, "interval"))
@@ -435,6 +435,7 @@ fn frame_interval(body: &Value) -> Option<u64> {
             let tx = get(body, "tx")?;
             as_i64(tx, "interval_ms").or_else(|| as_i64(tx, "interval"))
         })
+        .or_else(|| as_i64(body, "tx_interval_ms"))
         .and_then(|i| u64::try_from(i).ok())
 }
 
@@ -814,14 +815,18 @@ impl Catalog {
     /// Parse a TOML catalogue into the resolved model. Mirrors
     /// `parseCatalogText`.
     pub fn parse(text: &str) -> Result<Catalog, CatalogError> {
-        let root: Value = toml::from_str(text)?;
+        Ok(Self::parse_root(&toml::from_str(text)?, text))
+    }
 
+    /// `root` is `text` parsed, perhaps reshaped outside its Modbus section,
+    /// which is read from `text`.
+    pub(crate) fn parse_root(root: &Value, text: &str) -> Catalog {
         let meta = Meta {
-            name: meta_name(&root),
-            version: get(&root, "meta")
+            name: meta_name(root),
+            version: get(root, "meta")
                 .and_then(|m| as_u32(m, "version"))
                 .unwrap_or(1),
-            default_frame: get(&root, "meta")
+            default_frame: get(root, "meta")
                 .and_then(|m| as_str(m, "default_frame"))
                 .and_then(|p| match p {
                     "can" => Some(Protocol::Can),
@@ -831,18 +836,18 @@ impl Catalog {
                 }),
         };
 
-        let can = parse_can_config(&root);
-        let serial = parse_serial_config(&root);
-        let modbus = parse_modbus_config(&root);
+        let can = parse_can_config(root);
+        let serial = parse_serial_config(root);
+        let modbus = parse_modbus_config(root);
 
         let empty = Value::Table(Default::default());
-        let can_frames = get(&root, "frame")
+        let can_frames = get(root, "frame")
             .and_then(|f| get(f, "can"))
             .unwrap_or(&empty);
-        let serial_frames = get(&root, "frame")
+        let serial_frames = get(root, "frame")
             .and_then(|f| get(f, "serial"))
             .unwrap_or(&empty);
-        let modbus_frames_section = get(&root, "frame")
+        let modbus_frames_section = get(root, "frame")
             .and_then(|f| get(f, "modbus"))
             .unwrap_or(&empty);
 
@@ -907,7 +912,7 @@ impl Catalog {
                     key: id_key.clone(),
                     frame_id: num_id,
                     protocol: Protocol::Can,
-                    name: None,
+                    name: as_str(body, "name").map(str::to_string),
                     length,
                     transmitter: as_str(body, "transmitter")
                         .map(str::to_string)
@@ -971,15 +976,27 @@ impl Catalog {
         }
 
         // Modbus frames (reuse ModbusManifest for shorthands). The manifest
-        // drops the raw frame body, so backfill notes + inheritance flags from
-        // the `[frame.modbus]` table here (device address / register base come
-        // from `[meta.modbus]`, so they're always inherited when present).
+        // drops the raw frame body, so backfill notes, the transmitter, signal
+        // confidence and notes, and inheritance flags from the `[frame.modbus]`
+        // table here (device address / register base come from `[meta.modbus]`,
+        // so they're always inherited when present).
         let modbus_base = frames.len();
         frames.extend(modbus_frames(text));
-        let modbus_default_interval = modbus.as_ref().and_then(|m| m.default_interval);
         for frame in &mut frames[modbus_base..] {
             let body = get(modbus_frames_section, &frame.key);
             frame.notes = body.map(parse_notes).unwrap_or_default();
+            frame.transmitter = body
+                .and_then(|b| as_str(b, "transmitter"))
+                .map(str::to_string);
+            let raw = body
+                .and_then(|b| get(b, "signals"))
+                .and_then(Value::as_array);
+            if let Some(raw) = raw.filter(|r| r.len() == frame.signals.len()) {
+                for (signal, raw) in frame.signals.iter_mut().zip(raw) {
+                    signal.confidence = as_str(raw, "confidence").and_then(parse_confidence);
+                    signal.notes = parse_notes(raw);
+                }
+            }
             let mut inherited = Vec::new();
             // The device address is never set on the register itself — it's
             // resolved from the assigned node (or the legacy `[meta.modbus]`
@@ -990,8 +1007,7 @@ impl Catalog {
             if modbus.as_ref().and_then(|m| m.register_base).is_some() {
                 inherited.push("registerBase".to_string());
             }
-            let explicit_interval = body.and_then(frame_interval);
-            if explicit_interval.is_none() && modbus_default_interval.is_some() {
+            if body.and_then(frame_interval).is_none() {
                 inherited.push("interval".to_string());
             }
             frame.inherited_fields = inherited;
@@ -1018,7 +1034,7 @@ impl Catalog {
         // `[meta.modbus].device_address` with no `[node]` tables. Synthesise a
         // slave node and attach the orphaned registers to it so the editor shows
         // them grouped (display-only until the catalogue is re-saved).
-        let mut nodes = parse_nodes(&root);
+        let mut nodes = parse_nodes(root);
         if has_modbus && nodes.is_empty() {
             if let Some(addr) = frames[modbus_base..]
                 .iter()
@@ -1040,7 +1056,7 @@ impl Catalog {
 
         let effective_defaults =
             EffectiveDefaults::of(can.as_ref(), serial.as_ref(), modbus.as_ref());
-        Ok(Catalog {
+        Catalog {
             meta,
             protocol,
             can,
@@ -1049,7 +1065,7 @@ impl Catalog {
             frames,
             nodes,
             effective_defaults,
-        })
+        }
     }
 
     /// Find a parsed frame by its numeric id, in any protocol. A serial frame
@@ -1616,6 +1632,56 @@ byte_order = "big"
         assert_eq!(s.factor, Some(0.25));
         // byte_order key maps onto endianness.
         assert_eq!(s.endianness, Some(Endianness::Big));
+    }
+
+    #[test]
+    fn a_legacy_tx_interval_ms_times_a_frame_nothing_newer_times() {
+        let toml = r#"
+[meta]
+name = "x"
+[frame.can.0x100]
+tx_interval_ms = 60000
+[frame.can.0x101]
+tx_interval_ms = 60000
+interval_ms = 50
+[frame.modbus.reg]
+register_number = 1
+tx_interval_ms = 60000
+"#;
+        let c = Catalog::parse(toml).unwrap();
+        let can = |key| c.frame_by_key(Protocol::Can, key).unwrap();
+        assert_eq!(can("0x100").interval, Some(60000));
+        assert_eq!(can("0x101").interval, Some(50));
+        let reg = c.frame_by_key(Protocol::Modbus, "reg").unwrap();
+        assert_eq!(reg.interval, Some(60000));
+        assert!(!reg.inherited_fields.contains(&"interval".to_string()));
+    }
+
+    #[test]
+    fn a_can_frame_keeps_its_name_and_a_modbus_frame_its_transmitter_and_signal_confidence() {
+        let toml = r#"
+[meta]
+name = "x"
+[frame.can.0x100]
+name = "Status"
+[frame.modbus.reg]
+register_number = 1
+transmitter = "Inverter"
+[[frame.modbus.reg.signals]]
+name = "v"
+start_bit = 0
+bit_length = 16
+confidence = "high"
+notes = "seen"
+"#;
+        let c = Catalog::parse(toml).unwrap();
+        let can = c.frame_by_key(Protocol::Can, "0x100").unwrap();
+        assert_eq!(can.name.as_deref(), Some("Status"));
+        let reg = c.frame_by_key(Protocol::Modbus, "reg").unwrap();
+        assert_eq!(reg.transmitter.as_deref(), Some("Inverter"));
+        assert_eq!(reg.signals[0].confidence, Some(Confidence::High));
+        assert_eq!(reg.signals[0].notes, ["seen"]);
+        assert!(reg.inherited_fields.contains(&"interval".to_string()));
     }
 
     #[test]

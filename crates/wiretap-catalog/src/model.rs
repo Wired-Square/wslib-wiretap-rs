@@ -515,8 +515,8 @@ pub struct Frame {
     /// register number. [`NAME_KEYED_FRAME_ID`] for a serial frame keyed by a name.
     pub frame_id: u32,
     pub protocol: Protocol,
-    /// The catalogue table key, when it carries meaning (e.g. a Modbus frame's
-    /// `ems_control`).
+    /// A CAN frame's `name`, or the catalogue table key when it carries meaning
+    /// (e.g. a Modbus frame's `ems_control`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     /// Frame length in bytes.

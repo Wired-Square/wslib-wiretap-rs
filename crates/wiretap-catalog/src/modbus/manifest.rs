@@ -278,6 +278,7 @@ impl ModbusManifest {
                     interval_ms: f
                         .interval_ms
                         .or_else(|| f.tx.and_then(|t| t.interval_ms))
+                        .or(f.tx_interval_ms)
                         .unwrap_or(default_interval),
                     disabled: f.disabled,
                     node: addr_to_name.get(&device_address).map(|s| s.to_string()),
@@ -767,6 +768,8 @@ struct RawFrame {
     interval_ms: Option<u64>,
     #[serde(default)]
     tx: Option<RawTx>,
+    #[serde(default)]
+    tx_interval_ms: Option<u64>,
     #[serde(default)]
     disabled: bool,
     /// The device (slave) address this register is read from. Matched to a

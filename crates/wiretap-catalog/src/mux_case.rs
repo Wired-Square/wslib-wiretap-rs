@@ -3,6 +3,8 @@
 
 use std::cmp::Ordering;
 
+use serde::{Deserialize, Serialize};
+
 /// Whether a mux table key denotes a case (numeric, range `0-3`, or list
 /// `1,2,5`, parts trimmed) rather than a reserved key.
 pub fn is_mux_case_key(key: &str) -> bool {
@@ -12,6 +14,34 @@ pub fn is_mux_case_key(key: &str) -> bool {
             Some((a, b)) => digits(a) && digits(b),
             None => digits(part.trim()),
         })
+}
+
+/// An inclusive run of selector values a case matches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaseRange {
+    pub first: u64,
+    pub last: u64,
+}
+
+/// The values a case key matches, one range per part in authored order (a
+/// reversed range `3-1` as `1..=3`), or `None` when the key is not a case or a
+/// value is wider than 64 bits.
+pub fn mux_case_values(key: &str) -> Option<Vec<CaseRange>> {
+    if !is_mux_case_key(key) {
+        return None;
+    }
+    key.split(',')
+        .map(|part| {
+            let part = part.trim();
+            let (a, b) = part.split_once('-').unwrap_or((part, part));
+            let (a, b) = (a.parse::<u64>().ok()?, b.parse::<u64>().ok()?);
+            Some(CaseRange {
+                first: a.min(b),
+                last: a.max(b),
+            })
+        })
+        .collect()
 }
 
 /// A total order over mux table keys: case keys by their first value (a range
@@ -50,6 +80,22 @@ mod tests {
             keys,
             ["0-3", "1", "1,2", "2", "2-5", "007", "7", "10", "B", "abc"]
         );
+    }
+
+    #[test]
+    fn case_values_are_parsed_not_read_as_their_first_number() {
+        let range = |first, last| CaseRange { first, last };
+        assert_eq!(mux_case_values("0-3"), Some(vec![range(0, 3)]));
+        assert_eq!(
+            mux_case_values("10, 12"),
+            Some(vec![range(10, 10), range(12, 12)])
+        );
+        assert_eq!(
+            mux_case_values("3-1,007"),
+            Some(vec![range(1, 3), range(7, 7)])
+        );
+        assert_eq!(mux_case_values("notes"), None);
+        assert_eq!(mux_case_values("123456789012345678901234567890"), None);
     }
 
     #[test]

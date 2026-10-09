@@ -22,6 +22,8 @@
 //!   by the read its last byte arrived in, on the caller's clock.
 //! - [`framing_detect`] — which framing a raw serial byte stream uses (SLIP,
 //!   Modbus RTU or a delimiter), and what RTU couldn't frame.
+//! - [`summary`] — a catalogue's counts and resolved per-frame rows, across
+//!   protocols, for a consumer's report.
 //! - [`dbc`] — Vector DBC ↔ catalogue TOML import/export.
 //!
 //! The Modbus parser/decoder was originally extracted from the Home Assistant
@@ -41,6 +43,7 @@ pub mod modbus_rtu_tap;
 pub mod model;
 pub mod mux_case;
 pub mod parse;
+pub mod summary;
 pub mod validate;
 
 pub use layout::{frame_layout, FrameLayout, LayoutRange, RangeKind};
@@ -59,5 +62,6 @@ pub use model::{
     WriteBank,
 };
 pub use model::{EffectiveDefaults, NAME_KEYED_FRAME_ID};
-pub use mux_case::{compare_mux_case_keys, is_mux_case_key};
+pub use mux_case::{compare_mux_case_keys, is_mux_case_key, mux_case_values, CaseRange};
 pub use parse::{rtu_rules, CatalogError, RtuRules, RtuRulesError};
+pub use summary::CatalogSummary;

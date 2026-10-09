@@ -95,9 +95,42 @@ fn the_served_models_change_only_by_addition() {
             }
             !by_name
         });
+        let modbus_default_interval = catalog.modbus.as_ref().and_then(|m| m.default_interval);
+        let fixture_frames = fixture(&format!("{name}.catalog.json"))["frames"].clone();
+        let had_interval = |key: &str| {
+            fixture_frames
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|f| f["key"] == key && f.get("interval").is_some())
+        };
         for frame in frames.iter_mut() {
             let frame = frame.as_object_mut().unwrap();
             let key = frame["key"].as_str().unwrap().to_string();
+            let (can, modbus) = (frame["protocol"] == "can", frame["protocol"] == "modbus");
+            if can && !had_interval(&key) && frame.remove("interval").is_some() {
+                added.push(format!("{key} interval from tx_interval_ms"));
+                if let Some(Value::Array(fields)) = frame.get_mut("inheritedFields") {
+                    fields.retain(|f| f != "interval");
+                    if fields.is_empty() {
+                        frame.remove("inheritedFields");
+                    }
+                }
+            }
+            if can && frame.remove("name").is_some() {
+                added.push(format!("{key} name"));
+            }
+            if modbus && frame.remove("transmitter").is_some() {
+                added.push(format!("{key} transmitter"));
+            }
+            for signal in frame["signals"].as_array_mut().unwrap() {
+                let signal = signal.as_object_mut().unwrap();
+                for field in ["confidence", "notes"] {
+                    if modbus && signal.remove(field).is_some() {
+                        added.push(format!("modbus signal {field}"));
+                    }
+                }
+            }
             let Some(Value::Array(fields)) = frame.get_mut("inheritedFields") else {
                 continue;
             };
@@ -108,6 +141,10 @@ fn the_served_models_change_only_by_addition() {
                 }
                 "mux" => {
                     added.push(format!("{key} inherits mux"));
+                    false
+                }
+                "interval" if modbus && modbus_default_interval.is_none() => {
+                    added.push(format!("{key} inherits its interval"));
                     false
                 }
                 _ => true,
@@ -124,8 +161,23 @@ fn the_served_models_change_only_by_addition() {
             "sbrxxx" => &[
                 "0x008 inherits mux",
                 "0x00a inherits mux",
+                "0x01A interval from tx_interval_ms",
+                "0x01b interval from tx_interval_ms",
+                "0x01c interval from tx_interval_ms",
+                "0x01d interval from tx_interval_ms",
+                "0x01e interval from tx_interval_ms",
+                "0x71A interval from tx_interval_ms",
+                "0x71B interval from tx_interval_ms",
+                "0x71C interval from tx_interval_ms",
+                "0x71D interval from tx_interval_ms",
+                "0x71E interval from tx_interval_ms",
+                "0x71F interval from tx_interval_ms",
                 "inherits signals",
+                "modbus signal confidence",
+                "tunnel_4de2_holding inherits its interval",
+                "tunnel_4de2_input inherits its interval",
             ],
+            "modbus" => &["battery_power transmitter", "modbus signal confidence"],
             "serial" => &["frame heartbeat"],
             _ => &[],
         };
@@ -414,7 +466,50 @@ fn the_tree_goldens() {
     }
     let unset_base =
         "the crate reads an unset register_base as 0; effectiveDefaults.modbusRegisterBase says so";
-    differences.assert_pinned(vec![
+    let built_in_interval =
+        "R7 K4: the built-in 5000 ms is not set on the frame, so it is inherited";
+    let mut pinned: Vec<Pinned> = Vec::new();
+    for &(key, id) in &TX_INTERVAL_MS {
+        let at = |field: &str| &*format!("frame.can.{key} {field}").leak();
+        pinned.push((
+            "tree.sbrxxx",
+            at("interval"),
+            Value::Null,
+            json!(60000),
+            TX_INTERVAL_MS_WHY,
+        ));
+        if id < 0x700 {
+            pinned.push((
+                "tree.sbrxxx",
+                at("intervalInherited"),
+                json!(false),
+                json!(true),
+                TX_INTERVAL_MS_WHY,
+            ));
+        }
+    }
+    pinned.extend([
+        (
+            "tree.sbrxxx",
+            "frame.modbus.tunnel_4de2_holding intervalInherited",
+            json!(false),
+            json!(true),
+            built_in_interval,
+        ),
+        (
+            "tree.sbrxxx",
+            "frame.modbus.tunnel_4de2_input intervalInherited",
+            json!(false),
+            json!(true),
+            built_in_interval,
+        ),
+        (
+            "tree.modbus",
+            "frame.modbus.battery_power transmitter",
+            Value::Null,
+            json!("Inverter"),
+            "R7 K4: a Modbus frame's transmitter is in the model",
+        ),
         (
             "tree.sbrxxx",
             "frame.modbus.tunnel_4de2_holding registerBase",
@@ -437,7 +532,25 @@ fn the_tree_goldens() {
             "D3, facts 8: a serial frame keyed by a name is in the model",
         ),
     ]);
+    differences.assert_pinned(pinned);
 }
+
+/// sbrxxx's frames timed by `tx_interval_ms`, then the mirrors inheriting it.
+const TX_INTERVAL_MS: [(&str, u32); 11] = [
+    ("0x71A", 0x71A),
+    ("0x71B", 0x71B),
+    ("0x71C", 0x71C),
+    ("0x71D", 0x71D),
+    ("0x71E", 0x71E),
+    ("0x71F", 0x71F),
+    ("0x01A", 0x01A),
+    ("0x01b", 0x01B),
+    ("0x01c", 0x01C),
+    ("0x01d", 0x01D),
+    ("0x01e", 0x01E),
+];
+const TX_INTERVAL_MS_WHY: &str =
+    "R7 K4: the model reads the legacy `tx_interval_ms`, as the report did";
 
 // ---------- the resolved catalogue ----------
 
@@ -499,7 +612,10 @@ fn the_resolved_goldens() {
                     .collect::<Vec<_>>(),
                 "cases": ts["mux"]["cases"].as_object().map(|c| c.keys().collect::<Vec<_>>()),
             });
-            differences.compare(&label, format!("frames[{id}]"), &ts_frame, lib_frame);
+            for (field, ts) in ts_frame.as_object().unwrap() {
+                let at = format!("frames[{id}].{field}");
+                differences.compare(&label, at, ts, lib_frame[field].clone());
+            }
         }
 
         let mut metadata = json!({ "name": catalog.meta.name, "version": catalog.meta.version });
@@ -516,7 +632,27 @@ fn the_resolved_goldens() {
             &expected["modbusConfig"],
         );
     }
-    differences.assert_pinned(vec![
+    let mut pinned: Vec<Pinned> = TX_INTERVAL_MS
+        .iter()
+        .map(|&(_, id)| {
+            let field = format!("frames[{id}].interval").leak();
+            (
+                "resolved.sbrxxx",
+                &*field,
+                Value::Null,
+                json!(60000),
+                TX_INTERVAL_MS_WHY,
+            )
+        })
+        .collect();
+    pinned.extend([
+        (
+            "resolved.modbus",
+            "frames[13021].transmitter",
+            Value::Null,
+            json!("Inverter"),
+            "R7 K4: a Modbus frame's transmitter is in the model",
+        ),
         (
             "resolved.sbrxxx",
             "frames[19938]",
@@ -532,6 +668,7 @@ fn the_resolved_goldens() {
             "D3, facts 8: heartbeat is in the model, frameId NAME_KEYED_FRAME_ID (u32::MAX); find it by (serial, \"heartbeat\")",
         ),
     ]);
+    differences.assert_pinned(pinned);
 }
 
 fn snake(key: &str) -> String {

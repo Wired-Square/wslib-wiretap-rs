@@ -15,6 +15,7 @@
 //!   sequences, mux and burst timing, and the ids seen on more than one bus.
 //! - [`mirror`] — mirror groups: ids carrying the same changing payload together.
 //! - [`notes`] — what a byte profile says, as note codes for the caller to word.
+//! - [`summary`] — the counts a Payload Changes or Frame Order report sums up.
 //!
 //! Per-byte-column statistics live in [`wiretap_checksum::columns`], beside the
 //! addressing they are indexed by. A caller that needs them
@@ -39,6 +40,7 @@ pub mod order;
 pub mod roles;
 pub mod scan;
 pub mod structure;
+pub mod summary;
 
 pub use checksum::{
     checksum_evidence, checksum_evidence_with_columns, solve_targets, ChecksumEvidence,
@@ -57,3 +59,6 @@ pub use scan::{
     DiscoveredChecksum, FrameChecksumFinding, FrameKey, DEFAULT_MIN_LIKENESS,
 };
 pub use structure::{serial_structure, CandidateReason, FieldCandidate, SerialStructure};
+pub use summary::{
+    changes_counts, order_totals, BusCounts, ChangesCounts, OrderTotals, ProtocolOrderCounts,
+};

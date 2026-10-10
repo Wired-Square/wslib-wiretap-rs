@@ -67,5 +67,5 @@ before one; `bus` is `null` for an interface assigned but never seen.
 ## Using it
 
 ```toml
-wiretap-gateway = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.4.0" }
+wiretap-gateway = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.5.0" }
 ```

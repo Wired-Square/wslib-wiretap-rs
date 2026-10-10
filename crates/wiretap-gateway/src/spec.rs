@@ -117,62 +117,74 @@ impl RowWindow {
 }
 
 impl QuerySpec {
+    /// The protocol and time bounds every variant carries.
+    pub fn window(&self) -> &RowWindow {
+        match self {
+            Self::ByteChanges { window, .. }
+            | Self::FrameChanges { window, .. }
+            | Self::MirrorValidation { window, .. }
+            | Self::MuxStatistics { window, .. }
+            | Self::FirstLast { window, .. }
+            | Self::Frequency { window, .. }
+            | Self::Distribution { window, .. }
+            | Self::GapAnalysis { window, .. }
+            | Self::PatternSearch { window, .. }
+            | Self::FrameInventory { window, .. } => window,
+        }
+    }
+
     /// The row sets the query reads, in order: the mirror's then the source's for a
     /// mirror validation, otherwise one.
     pub fn row_filters(&self) -> Vec<FrameRowFilter> {
+        let window = self.window();
         match self {
             Self::ByteChanges {
                 frame_id,
                 is_extended,
-                window,
                 ..
             }
             | Self::FrameChanges {
                 frame_id,
                 is_extended,
-                window,
                 ..
             }
             | Self::MuxStatistics {
                 frame_id,
                 is_extended,
-                window,
                 ..
             }
             | Self::FirstLast {
                 frame_id,
                 is_extended,
-                window,
+                ..
             }
             | Self::Frequency {
                 frame_id,
                 is_extended,
-                window,
                 ..
             }
             | Self::Distribution {
                 frame_id,
                 is_extended,
-                window,
                 ..
             }
             | Self::GapAnalysis {
                 frame_id,
                 is_extended,
-                window,
                 ..
-            } => vec![window.filter(Some(*frame_id), *is_extended)],
+            } => {
+                vec![window.filter(Some(*frame_id), *is_extended)]
+            }
             Self::MirrorValidation {
                 mirror_frame_id,
                 source_frame_id,
                 is_extended,
-                window,
                 ..
             } => vec![
                 window.filter(Some(*mirror_frame_id), *is_extended),
                 window.filter(Some(*source_frame_id), *is_extended),
             ],
-            Self::PatternSearch { window, .. } | Self::FrameInventory { window, .. } => {
+            Self::PatternSearch { .. } | Self::FrameInventory { .. } => {
                 vec![window.filter(None, None)]
             }
         }
@@ -254,6 +266,38 @@ mod tests {
             limit: None,
         };
         assert_eq!(spec.row_filters(), [FrameRowFilter::default()]);
+    }
+
+    #[test]
+    fn every_variant_answers_its_window() {
+        let window = RowWindow {
+            protocol: Some(Protocol::Modbus),
+            start_us: Some(1),
+            end_us: Some(9),
+        };
+        let specs = [
+            QuerySpec::Distribution {
+                frame_id: 1,
+                is_extended: None,
+                window: window.clone(),
+                byte_index: 0,
+            },
+            QuerySpec::MirrorValidation {
+                mirror_frame_id: 2,
+                source_frame_id: 1,
+                is_extended: None,
+                window: window.clone(),
+                tolerance_ms: 50,
+                limit: None,
+            },
+            QuerySpec::FrameInventory {
+                window: window.clone(),
+                limit: None,
+            },
+        ];
+        for spec in specs {
+            assert_eq!(spec.window(), &window);
+        }
     }
 
     #[test]

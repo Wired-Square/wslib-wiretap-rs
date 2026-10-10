@@ -19,6 +19,9 @@ pub struct InventoryEntry {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InventoryResponse {
     pub entries: Vec<InventoryEntry>,
+    /// The gateway cut `entries` at the request's `limit`; absent from older gateways.
+    #[serde(default)]
+    pub truncated: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

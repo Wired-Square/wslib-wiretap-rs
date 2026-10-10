@@ -3,10 +3,11 @@
 //! where the kernel differs on purpose.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::time::Instant;
 
 use wiretap_analysis::query::*;
 use wiretap_catalog::Catalog;
-use wiretap_gateway::FrequencyQueryResult;
+use wiretap_gateway::{FirstLastResult, FrequencyQueryResult};
 
 fn row(timestamp_us: i64, payload: &[u8]) -> QueryRow {
     QueryRow {
@@ -271,6 +272,28 @@ fn deviation_first_last_scans_its_rows_and_is_none_without_any() {
     assert_eq!(found.results.total_count, 2);
     assert_eq!(found.stats.rows_scanned, 2);
     assert!(first_last(&[]).is_none());
+}
+
+/// The desktop reads the ends and a `COUNT(*)`, and counts three rows scanned.
+#[test]
+fn deviation_first_last_from_the_ends_scans_its_two_rows_and_keeps_the_count() {
+    let (first, last) = (row(5, &[1]), row(9, &[3]));
+    let found = first_last_from_ends(&first, &last, 250);
+    let whole = first_last(&rows(&[(5, &[1]), (7, &[2]), (9, &[3])])).unwrap();
+    assert_eq!(
+        found.results,
+        FirstLastResult {
+            total_count: 250,
+            ..whole.results
+        }
+    );
+    assert_eq!(found.stats.rows_scanned, 2);
+}
+
+#[test]
+fn stats_count_what_the_caller_scanned_and_found() {
+    let found = stats(3, 1, Instant::now());
+    assert_eq!((found.rows_scanned, found.results_count), (3, 1));
 }
 
 fn buckets(found: &FrequencyQueryResult) -> Vec<(i64, i64, f64, f64, f64)> {

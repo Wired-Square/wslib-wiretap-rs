@@ -53,7 +53,9 @@ checksum on most frame ids.
   first, answering in `wiretap-gateway`'s result types: byte and frame changes,
   mirror validation (`mirror_compare_set` for a catalogue's inherited bytes), mux
   statistics, first/last, frequency, distribution, gaps and masked pattern
-  search. Every kernel stops at `limit` results, never rows
+  search. Every kernel stops at `limit` results, never rows.
+  `first_last_from_ends` answers from the end rows and a count, and `stats`
+  stamps a caller's own result
 
 Per-byte-column statistics live in [`wiretap-checksum`](../wiretap-checksum),
 beside the addressing they are indexed by; reach for them there directly. Roles

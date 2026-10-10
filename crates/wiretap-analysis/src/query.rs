@@ -47,7 +47,8 @@ fn cap(limit: Option<u32>) -> usize {
     limit.map_or(usize::MAX, |n| n as usize)
 }
 
-fn stats(rows_scanned: usize, results_count: usize, started: Instant) -> QueryStats {
+/// A kernel's [`QueryStats`], its time measured from `started`.
+pub fn stats(rows_scanned: usize, results_count: usize, started: Instant) -> QueryStats {
     QueryStats {
         rows_scanned: rows_scanned as u64,
         results_count: results_count as u64,
@@ -289,18 +290,28 @@ pub fn mux_statistics(
 
 /// The first and last rows and how many there are; `None` without rows.
 pub fn first_last(rows: &[QueryRow]) -> Option<FirstLastQueryResult> {
+    let mut found = first_last_from_ends(rows.first()?, rows.last()?, rows.len() as i64);
+    found.stats.rows_scanned = rows.len() as u64;
+    Some(found)
+}
+
+/// [`first_last`] from the two end rows and the total, read without the rows between.
+pub fn first_last_from_ends(
+    first: &QueryRow,
+    last: &QueryRow,
+    total_count: i64,
+) -> FirstLastQueryResult {
     let started = Instant::now();
-    let (first, last) = (rows.first()?, rows.last()?);
-    Some(FirstLastQueryResult {
+    FirstLastQueryResult {
         results: FirstLastResult {
             first_timestamp_us: first.timestamp_us,
             first_payload: first.payload.clone(),
             last_timestamp_us: last.timestamp_us,
             last_payload: last.payload.clone(),
-            total_count: rows.len() as i64,
+            total_count,
         },
-        stats: stats(rows.len(), 1, started),
-    })
+        stats: stats(2, 1, started),
+    }
 }
 
 /// Frames per `bucket_size_ms` bucket, each counted in the bucket its own

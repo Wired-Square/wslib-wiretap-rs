@@ -17,6 +17,7 @@
 //! - [`server`] — health, the database list and the error body.
 //! - [`params`] — the request bodies and query strings, and [`Protocol`].
 //! - [`filter`] — the rows a query reads, as a SQLite `WHERE` clause over a capture.
+//! - [`spec`] — a query as one [`QuerySpec`], µs-bounded, before it becomes params.
 //! - [`admin`] — the daemons, their catalogue assignments and the stored catalogues.
 
 pub mod activity;
@@ -27,6 +28,7 @@ pub mod filter;
 pub mod params;
 pub mod query;
 pub mod server;
+pub mod spec;
 
 pub use activity::*;
 pub use admin::*;
@@ -36,3 +38,4 @@ pub use filter::*;
 pub use params::*;
 pub use query::*;
 pub use server::*;
+pub use spec::*;

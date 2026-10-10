@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "The WireTAP gateway's HTTP API as serde types: analytical query results, the archive and events endpoints, database activity, health and the database list, the admin API for catalogue assignment, and the request bodies and query strings."
+description = "The WireTAP gateway's HTTP API as serde types: analytical query results, the archive and events endpoints, database activity, health and the database list, the admin API for catalogue assignment, the request bodies and query strings, and the query spec with its SQLite row filter."
 readme = "README.md"
 
 [dependencies]

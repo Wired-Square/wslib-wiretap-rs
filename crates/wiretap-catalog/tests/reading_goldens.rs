@@ -117,6 +117,9 @@ fn the_served_models_change_only_by_addition() {
                     }
                 }
             }
+            if strip_case_order(frame.get_mut("mux")) {
+                added.push("mux caseOrder".into());
+            }
             if can && frame.remove("name").is_some() {
                 added.push(format!("{key} name"));
             }
@@ -174,15 +177,29 @@ fn the_served_models_change_only_by_addition() {
                 "0x71F interval from tx_interval_ms",
                 "inherits signals",
                 "modbus signal confidence",
+                "mux caseOrder",
                 "tunnel_4de2_holding inherits its interval",
                 "tunnel_4de2_input inherits its interval",
             ],
             "modbus" => &["battery_power transmitter", "modbus signal confidence"],
-            "serial" => &["frame heartbeat"],
+            "serial" => &["frame heartbeat", "mux caseOrder"],
             _ => &[],
         };
         assert_eq!(added, expected, "{name}");
     }
+}
+
+fn strip_case_order(mux: Option<&mut Value>) -> bool {
+    let Some(Value::Object(mux)) = mux else {
+        return false;
+    };
+    let mut stripped = mux.remove("caseOrder").is_some();
+    if let Some(Value::Object(cases)) = mux.get_mut("cases") {
+        for case in cases.values_mut() {
+            stripped |= strip_case_order(case.get_mut("mux"));
+        }
+    }
+    stripped
 }
 
 /// D4: a mirror's inherited signals and mux are named in `inheritedFields`.

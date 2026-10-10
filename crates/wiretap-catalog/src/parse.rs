@@ -16,7 +16,7 @@ use crate::modbus_rtu_stream::{
     rtu_options_for, LengthRule, ModbusRtuOptions, Selector, VendorLen,
 };
 use crate::model::*;
-use crate::mux_case::is_mux_case_key;
+use crate::mux_case::{compare_mux_case_keys, is_mux_case_key};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CatalogError {
@@ -271,6 +271,8 @@ fn parse_mux(mux: Option<&Value>, inherited: bool) -> Option<Mux> {
             },
         );
     }
+    let mut case_order: Vec<String> = cases.keys().cloned().collect();
+    case_order.sort_by(|a, b| compare_mux_case_keys(a, b));
     Some(Mux {
         name: as_str(mux, "name").map(str::to_string),
         start_bit: as_u32(mux, "start_bit").unwrap_or(0),
@@ -278,6 +280,7 @@ fn parse_mux(mux: Option<&Value>, inherited: bool) -> Option<Mux> {
         default: as_str(mux, "default").map(str::to_string),
         notes: parse_notes(mux),
         cases,
+        case_order,
     })
 }
 
@@ -1889,6 +1892,38 @@ bit_length = 8
         assert_eq!(
             nested.cases.get("0").unwrap().signals[0].name.as_deref(),
             Some("deep")
+        );
+    }
+
+    #[test]
+    fn mux_case_order_is_served_numerically_at_every_level() {
+        let toml = r#"
+[meta]
+name = "x"
+[frame.can.0x300]
+length = 8
+[frame.can.0x300.mux]
+start_bit = 0
+bit_length = 8
+[frame.can.0x300.mux."10"]
+[frame.can.0x300.mux."2"]
+[frame.can.0x300.mux."1,5"]
+[frame.can.0x300.mux."007"]
+[frame.can.0x300.mux."0-3".mux]
+start_bit = 8
+bit_length = 8
+[frame.can.0x300.mux."0-3".mux."12"]
+[frame.can.0x300.mux."0-3".mux."9"]
+"#;
+        let c = Catalog::parse(toml).unwrap();
+        let json = serde_json::to_value(c.frame(0x300).unwrap()).unwrap();
+        assert_eq!(
+            json["mux"]["caseOrder"],
+            serde_json::json!(["0-3", "1,5", "2", "007", "10"])
+        );
+        assert_eq!(
+            json["mux"]["cases"]["0-3"]["mux"]["caseOrder"],
+            serde_json::json!(["9", "12"])
         );
     }
 

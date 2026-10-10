@@ -305,6 +305,9 @@ pub struct Mux {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<String>,
     pub cases: BTreeMap<String, MuxCase>,
+    /// The keys of `cases` in [`crate::compare_mux_case_keys`] order, which JSON's object loses.
+    #[serde(default)]
+    pub case_order: Vec<String>,
 }
 
 /// The protocol carried inside a tunnel frame's payload.

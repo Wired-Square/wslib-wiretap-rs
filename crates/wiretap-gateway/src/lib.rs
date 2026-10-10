@@ -16,12 +16,14 @@
 //! - [`activity`] — `pg_stat_activity` and the cancel/terminate answer.
 //! - [`server`] — health, the database list and the error body.
 //! - [`params`] — the request bodies and query strings, and [`Protocol`].
+//! - [`filter`] — the rows a query reads, as a SQLite `WHERE` clause over a capture.
 //! - [`admin`] — the daemons, their catalogue assignments and the stored catalogues.
 
 pub mod activity;
 pub mod admin;
 pub mod archive;
 pub mod events;
+pub mod filter;
 pub mod params;
 pub mod query;
 pub mod server;
@@ -30,6 +32,7 @@ pub use activity::*;
 pub use admin::*;
 pub use archive::*;
 pub use events::*;
+pub use filter::*;
 pub use params::*;
 pub use query::*;
 pub use server::*;

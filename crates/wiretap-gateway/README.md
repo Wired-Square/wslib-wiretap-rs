@@ -17,6 +17,9 @@ async runtime.
 - **`server`** — `Health`, the database list and `ErrorBody`
 - **`params`** — `FrameFilter`, the query and `/payloads` bodies that flatten
   it, the `GET` query strings, and the `Protocol` they name
+- **`filter`** — `FrameRowFilter`, the rows a query reads, and `sql_where`, the
+  SQLite `WHERE` clause over a desktop capture's `frames`, with `?` per value and
+  an inlined form for showing
 - **`admin`** — the daemons and their devices, catalogue assignment and the
   stored catalogues; see [The admin API](#the-admin-api)
 

@@ -107,8 +107,10 @@ fn archive_responses_parse() {
             "frame_id": 2032, "is_extended": false, "count": 1, "first_us": 1, "last_us": 1,
             "max_dlc": 9, "max_len": 12,
         }],
+        "truncated": true,
     }));
     assert_eq!(inventory.entries[0].max_len, Some(12));
+    assert!(inventory.truncated);
     round_trip::<TimeBounds>(json!({ "min_ts_us": 1, "max_ts_us": 9 }));
     round_trip::<TimeBounds>(json!({ "min_ts_us": null, "max_ts_us": null }));
     round_trip::<FrameBatch>(json!({ "frames": [frame_row()], "next_cursor": "MTo1" }));
@@ -123,6 +125,11 @@ fn max_len_absent_is_none() {
         "frame_id": 0, "is_extended": false, "count": 1, "first_us": 0, "last_us": 0, "max_dlc": 9,
     }));
     assert_eq!(entry.max_len, None);
+}
+
+#[test]
+fn an_inventory_without_truncated_is_whole() {
+    assert!(!parse::<InventoryResponse>(json!({ "entries": [] })).truncated);
 }
 
 #[test]
@@ -278,6 +285,8 @@ fn params_round_trip() {
     }));
     round_trip::<ProtocolQuery>(json!({ "protocol": "modbus" }));
     round_trip::<TimeRangeQuery>(json!({ "start": "2023-11-14T00:00:00Z", "end": null }));
+    let limited = round_trip::<TimeRangeQuery>(json!({ "start": null, "end": null, "limit": 20 }));
+    assert_eq!(limited.limit, Some(20));
     round_trip::<FramesQuery>(
         json!({ "start": null, "end": null, "after": "MTo1", "limit": 30, "protocol": "can" }),
     );

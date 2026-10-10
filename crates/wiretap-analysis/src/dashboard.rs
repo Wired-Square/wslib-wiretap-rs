@@ -5,6 +5,7 @@ use serde::Serialize;
 
 /// Values in `[min, max)`; the last bin also holds `max`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct HistogramBin {
     pub min: f64,
     pub max: f64,

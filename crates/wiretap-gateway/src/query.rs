@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct QueryStats {
     pub rows_scanned: u64,
     pub results_count: u64,
@@ -10,6 +11,7 @@ pub struct QueryStats {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ByteChangeResult {
     pub timestamp_us: i64,
     pub old_value: u8,
@@ -17,12 +19,14 @@ pub struct ByteChangeResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ByteChangeQueryResult {
     pub results: Vec<ByteChangeResult>,
     pub stats: QueryStats,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct FrameChangeResult {
     pub timestamp_us: i64,
     pub old_payload: Vec<u8>,
@@ -31,12 +35,14 @@ pub struct FrameChangeResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct FrameChangeQueryResult {
     pub results: Vec<FrameChangeResult>,
     pub stats: QueryStats,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct MirrorValidationResult {
     pub mirror_timestamp_us: i64,
     pub source_timestamp_us: i64,
@@ -46,12 +52,14 @@ pub struct MirrorValidationResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct MirrorValidationQueryResult {
     pub results: Vec<MirrorValidationResult>,
     pub stats: QueryStats,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct BytePositionStats {
     pub byte_index: u8,
     pub min: u8,
@@ -62,6 +70,7 @@ pub struct BytePositionStats {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Word16Stats {
     pub start_byte: u8,
     pub endianness: String,
@@ -72,6 +81,7 @@ pub struct Word16Stats {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct MuxCaseStats {
     pub mux_value: u16,
     pub frame_count: u64,
@@ -80,6 +90,7 @@ pub struct MuxCaseStats {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct MuxStatisticsResult {
     pub mux_byte: u8,
     pub total_frames: u64,
@@ -87,12 +98,14 @@ pub struct MuxStatisticsResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct MuxStatisticsQueryResult {
     pub results: MuxStatisticsResult,
     pub stats: QueryStats,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct FirstLastResult {
     pub first_timestamp_us: i64,
     pub first_payload: Vec<u8>,
@@ -102,12 +115,14 @@ pub struct FirstLastResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct FirstLastQueryResult {
     pub results: FirstLastResult,
     pub stats: QueryStats,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct FrequencyBucket {
     pub bucket_start_us: i64,
     pub frame_count: i64,
@@ -117,12 +132,14 @@ pub struct FrequencyBucket {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct FrequencyQueryResult {
     pub results: Vec<FrequencyBucket>,
     pub stats: QueryStats,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct DistributionResult {
     pub value: u8,
     pub count: i64,
@@ -130,12 +147,14 @@ pub struct DistributionResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct DistributionQueryResult {
     pub results: Vec<DistributionResult>,
     pub stats: QueryStats,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct GapResult {
     pub gap_start_us: i64,
     pub gap_end_us: i64,
@@ -143,12 +162,14 @@ pub struct GapResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct GapAnalysisQueryResult {
     pub results: Vec<GapResult>,
     pub stats: QueryStats,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct PatternSearchResult {
     pub timestamp_us: i64,
     pub frame_id: u32,
@@ -158,6 +179,7 @@ pub struct PatternSearchResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct PatternSearchQueryResult {
     pub results: Vec<PatternSearchResult>,
     pub stats: QueryStats,

@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(rename = "ArchiveProtocol"))]
 #[serde(rename_all = "lowercase")]
 pub enum Protocol {
     Can,

@@ -11,6 +11,7 @@ use crate::{CaptureProtocol, FrameRowFilter, Protocol};
 
 /// The rows a query reads besides its frame: `start_us` inclusive, `end_us` exclusive.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct RowWindow {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protocol: Option<Protocol>,
@@ -19,6 +20,7 @@ pub struct RowWindow {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum QuerySpec {
     ByteChanges {

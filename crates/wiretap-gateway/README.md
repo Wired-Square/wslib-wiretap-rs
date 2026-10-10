@@ -5,6 +5,10 @@ The WireTAP gateway's HTTP API as serde types — the part of the
 desktop parses. It depends on `serde` alone: no HTTP client, no database, no
 async runtime.
 
+The off-by-default `ts` feature derives `ts_rs::TS` on `QuerySpec`, `RowWindow`,
+`Protocol` (as `ArchiveProtocol`) and the query results, for an app to export;
+nothing here writes a `.ts` file.
+
 ## What's here
 
 - **`query`** — the nine analytical results with their `QueryStats`: byte and

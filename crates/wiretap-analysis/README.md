@@ -41,6 +41,8 @@ checksum on most frame ids.
   scored from the sparser id's side
 - **`byte_notes`** — a byte profile's notes as codes (`ByteNote`), frame and
   mux-case level; the wording is the caller's
+- **`dashboard`** — a Dashboard panel's counters: `histogram` over a signal's
+  finite values, and `BitToggles`, how often each payload bit flips
 - **`draft::Draft`** — a catalogue in the making, one frame per protocol and
   key: Payload Changes (`apply_profiles`) and Frame Order (`apply_orders`)
   merged in either order, and `to_ops`, the typed `wiretap-catalog` edit ops

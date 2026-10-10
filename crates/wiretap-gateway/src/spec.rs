@@ -7,7 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{FrameRowFilter, Protocol};
+use crate::{CaptureProtocol, FrameRowFilter, Protocol};
 
 /// The rows a query reads besides its frame: `start_us` inclusive, `end_us` exclusive.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -94,6 +94,7 @@ pub enum QuerySpec {
     FrameInventory {
         #[serde(flatten)]
         window: RowWindow,
+        limit: Option<u32>,
     },
 }
 
@@ -102,7 +103,11 @@ impl RowWindow {
         FrameRowFilter {
             frame_id,
             is_extended,
-            protocol: self.protocol,
+            protocols: self
+                .protocol
+                .map(CaptureProtocol::of)
+                .unwrap_or_default()
+                .to_vec(),
             start_us: self.start_us,
             end_us: self.end_us,
         }
@@ -165,7 +170,7 @@ impl QuerySpec {
                 window.filter(Some(*mirror_frame_id), *is_extended),
                 window.filter(Some(*source_frame_id), *is_extended),
             ],
-            Self::PatternSearch { window, .. } | Self::FrameInventory { window } => {
+            Self::PatternSearch { window, .. } | Self::FrameInventory { window, .. } => {
                 vec![window.filter(None, None)]
             }
         }
@@ -204,7 +209,8 @@ mod tests {
         assert_eq!(
             spec,
             QuerySpec::FrameInventory {
-                window: RowWindow::default()
+                window: RowWindow::default(),
+                limit: None,
             }
         );
     }
@@ -225,6 +231,19 @@ mod tests {
     }
 
     #[test]
+    fn an_inventory_takes_a_limit() {
+        let spec: QuerySpec =
+            serde_json::from_value(json!({ "type": "frame_inventory", "limit": 20 })).unwrap();
+        assert!(matches!(
+            spec,
+            QuerySpec::FrameInventory {
+                limit: Some(20),
+                ..
+            }
+        ));
+    }
+
+    #[test]
     fn a_pattern_search_reads_every_frame() {
         let spec = QuerySpec::PatternSearch {
             window: RowWindow::default(),
@@ -233,5 +252,17 @@ mod tests {
             limit: None,
         };
         assert_eq!(spec.row_filters(), [FrameRowFilter::default()]);
+    }
+
+    #[test]
+    fn a_can_spec_reads_can_fd_rows_too() {
+        let spec: QuerySpec = serde_json::from_value(
+            json!({ "type": "first_last", "frame_id": 1, "protocol": "can" }),
+        )
+        .unwrap();
+        assert_eq!(
+            spec.row_filters()[0].protocols,
+            [CaptureProtocol::Can, CaptureProtocol::CanFd]
+        );
     }
 }

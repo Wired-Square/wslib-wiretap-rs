@@ -18,11 +18,13 @@ async runtime.
 - **`params`** — `FrameFilter`, the query and `/payloads` bodies that flatten
   it, the `GET` query strings, and the `Protocol` they name
 - **`filter`** — `FrameRowFilter`, the rows a query reads, and `sql_where`, the
-  SQLite `WHERE` clause over a desktop capture's `frames`, with `?` per value and
-  an inlined form for showing
+  SQLite `WHERE` clause over a desktop capture's `frames`, as an `Sql`: `?` per
+  value and `inlined()` for showing, a fragment or a whole statement alike
 - **`spec`** — `QuerySpec`, the ten queries as one value tagged by `type`:
   bounds in µs, durations in ms, `limit` counting results. Its `row_filters` are
-  what it reads; turning it into the params above is the client's
+  what it reads, a `Protocol` matching each `CaptureProtocol` a capture stores it
+  as (CAN with CAN FD, Modbus with Modbus RTU); turning it into the params above
+  is the client's
 - **`admin`** — the daemons and their devices, catalogue assignment and the
   stored catalogues; see [The admin API](#the-admin-api)
 

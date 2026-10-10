@@ -11,15 +11,62 @@ use serde::{Deserialize, Serialize};
 use crate::Protocol;
 
 /// A frame's rows in a time window: `start_us` inclusive, `end_us` exclusive.
-/// `None` filters nothing.
+/// `None`, or no protocols, filters nothing.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FrameRowFilter {
     pub frame_id: Option<u32>,
     pub is_extended: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub protocol: Option<Protocol>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub protocols: Vec<CaptureProtocol>,
     pub start_us: Option<i64>,
     pub end_us: Option<i64>,
+}
+
+/// A capture row's `protocol`, as the desktop stores it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CaptureProtocol {
+    Can,
+    #[serde(rename = "canfd")]
+    CanFd,
+    Modbus,
+    ModbusRtu,
+    Serial,
+}
+
+impl CaptureProtocol {
+    const ALL: [Self; 5] = [
+        Self::Can,
+        Self::CanFd,
+        Self::Modbus,
+        Self::ModbusRtu,
+        Self::Serial,
+    ];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Can => "can",
+            Self::CanFd => "canfd",
+            Self::Modbus => "modbus",
+            Self::ModbusRtu => "modbus_rtu",
+            Self::Serial => "serial",
+        }
+    }
+
+    /// The protocol a stored name is, `None` for a name the desktop doesn't store.
+    pub fn from_stored(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|p| p.as_str() == name)
+    }
+
+    /// What a capture stores an archive protocol's frames as: CAN with CAN FD, a
+    /// Modbus TCP poll with a Modbus RTU message.
+    pub fn of(protocol: Protocol) -> &'static [Self] {
+        match protocol {
+            Protocol::Can => &[Self::Can, Self::CanFd],
+            Protocol::Modbus => &[Self::Modbus, Self::ModbusRtu],
+            Protocol::Serial => &[Self::Serial],
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,17 +85,17 @@ impl fmt::Display for SqlValue {
     }
 }
 
-/// A `WHERE` condition with a `?` per value, in order.
+/// SQL with a `?` per value, in order: a `WHERE` condition or a whole statement.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SqlWhere {
-    pub clause: String,
+pub struct Sql {
+    pub sql: String,
     pub values: Vec<SqlValue>,
 }
 
-impl SqlWhere {
-    /// The clause with each value in place of its `?`, for showing what ran.
+impl Sql {
+    /// The SQL with each value in place of its `?`, for showing what ran.
     pub fn inlined(&self) -> String {
-        let mut parts = self.clause.split('?');
+        let mut parts = self.sql.split('?');
         let first = parts.next().unwrap_or_default().to_string();
         parts
             .zip(&self.values)
@@ -58,35 +105,34 @@ impl SqlWhere {
 
 impl FrameRowFilter {
     /// The condition selecting these rows of capture `capture_id`.
-    pub fn sql_where(&self, capture_id: &str) -> SqlWhere {
+    pub fn sql_where(&self, capture_id: &str) -> Sql {
         use SqlValue::{Integer, Text};
+        let equals = |column: &str, value| (format!("{column} = ?"), vec![value]);
+        let protocols = match self.protocols.as_slice() {
+            [] => None,
+            [one] => Some(equals("protocol", Text(one.as_str().into()))),
+            many => Some((
+                format!("protocol IN ({})", vec!["?"; many.len()].join(", ")),
+                many.iter().map(|p| Text(p.as_str().into())).collect(),
+            )),
+        };
         let terms = [
-            Some(("capture_id =", Text(capture_id.to_string()))),
-            self.frame_id.map(|id| ("frame_id =", Integer(id.into()))),
-            self.protocol
-                .map(|p| ("protocol =", Text(protocol_name(p).to_string()))),
+            Some(equals("capture_id", Text(capture_id.into()))),
+            self.frame_id
+                .map(|id| equals("frame_id", Integer(id.into()))),
+            protocols,
             self.is_extended
-                .map(|ext| ("is_extended =", Integer(ext.into()))),
-            self.start_us.map(|us| ("timestamp_us >=", Integer(us))),
-            self.end_us.map(|us| ("timestamp_us <", Integer(us))),
+                .map(|ext| equals("is_extended", Integer(ext.into()))),
+            self.start_us
+                .map(|us| ("timestamp_us >= ?".into(), vec![Integer(us)])),
+            self.end_us
+                .map(|us| ("timestamp_us < ?".into(), vec![Integer(us)])),
         ];
-        let (columns, values): (Vec<_>, Vec<_>) = terms.into_iter().flatten().unzip();
-        SqlWhere {
-            clause: columns
-                .iter()
-                .map(|c| format!("{c} ?"))
-                .collect::<Vec<_>>()
-                .join(" AND "),
-            values,
+        let (conditions, values): (Vec<String>, Vec<_>) = terms.into_iter().flatten().unzip();
+        Sql {
+            sql: conditions.join(" AND "),
+            values: values.concat(),
         }
-    }
-}
-
-fn protocol_name(protocol: Protocol) -> &'static str {
-    match protocol {
-        Protocol::Can => "can",
-        Protocol::Modbus => "modbus",
-        Protocol::Serial => "serial",
     }
 }
 
@@ -107,7 +153,7 @@ mod tests {
         };
         let sql = filter.sql_where(CAPTURE);
         assert_eq!(
-            sql.clause,
+            sql.sql,
             "capture_id = ? AND frame_id = ? AND is_extended = ? AND timestamp_us >= ? AND timestamp_us < ?"
         );
         assert_eq!(
@@ -138,13 +184,53 @@ mod tests {
         let filter = FrameRowFilter {
             frame_id: Some(3),
             is_extended: Some(false),
-            protocol: Some(Protocol::Modbus),
+            protocols: vec![CaptureProtocol::ModbusRtu],
             ..Default::default()
         };
         assert_eq!(
             filter.sql_where("c").inlined(),
-            "capture_id = 'c' AND frame_id = 3 AND protocol = 'modbus' AND is_extended = 0"
+            "capture_id = 'c' AND frame_id = 3 AND protocol = 'modbus_rtu' AND is_extended = 0"
         );
+    }
+
+    #[test]
+    fn several_protocols_read_as_one_in() {
+        let filter = FrameRowFilter {
+            protocols: CaptureProtocol::of(Protocol::Can).to_vec(),
+            start_us: Some(7),
+            ..Default::default()
+        };
+        let sql = filter.sql_where("c");
+        assert_eq!(
+            sql.sql,
+            "capture_id = ? AND protocol IN (?, ?) AND timestamp_us >= ?"
+        );
+        assert_eq!(
+            sql.inlined(),
+            "capture_id = 'c' AND protocol IN ('can', 'canfd') AND timestamp_us >= 7"
+        );
+    }
+
+    #[test]
+    fn a_capture_protocol_is_its_stored_name() {
+        for p in CaptureProtocol::ALL {
+            assert_eq!(serde_json::to_value(p).unwrap(), p.as_str());
+            assert_eq!(CaptureProtocol::from_stored(p.as_str()), Some(p));
+        }
+        assert_eq!(CaptureProtocol::from_stored("can_fd"), None);
+    }
+
+    #[test]
+    fn an_archive_protocol_matches_what_a_capture_stores_it_as() {
+        let stored = |p| {
+            CaptureProtocol::of(p)
+                .iter()
+                .map(|c| c.as_str())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(stored(Protocol::Can), ["can", "canfd"]);
+        assert_eq!(stored(Protocol::Modbus), ["modbus", "modbus_rtu"]);
+        assert_eq!(stored(Protocol::Serial), ["serial"]);
     }
 
     #[test]

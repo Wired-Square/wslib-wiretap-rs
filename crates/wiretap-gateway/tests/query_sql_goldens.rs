@@ -87,7 +87,10 @@ fn spec(query: &str, bounded: bool) -> QuerySpec {
             pattern_mask: vec![0xFF, 0x00],
             limit,
         },
-        "frame_inventory" => QuerySpec::FrameInventory { window },
+        "frame_inventory" => QuerySpec::FrameInventory {
+            window,
+            limit: None,
+        },
         other => panic!("unknown query {other}"),
     }
 }

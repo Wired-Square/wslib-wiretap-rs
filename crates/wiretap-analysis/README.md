@@ -47,6 +47,11 @@ checksum on most frame ids.
   that write it, with hex signals over every byte nothing else claims
   (`default_signals`). `draft::candidate_signals` lists the `byte_*` fields
   worth charting over a byte range
+- **`query`** — the analytical query kernels over rows already read, oldest
+  first, answering in `wiretap-gateway`'s result types: byte and frame changes,
+  mirror validation (`mirror_compare_set` for a catalogue's inherited bytes), mux
+  statistics, first/last, frequency, distribution, gaps and masked pattern
+  search. Every kernel stops at `limit` results, never rows
 
 Per-byte-column statistics live in [`wiretap-checksum`](../wiretap-checksum),
 beside the addressing they are indexed by; reach for them there directly. Roles

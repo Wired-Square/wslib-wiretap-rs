@@ -19,6 +19,8 @@
 //! - [`draft`] — profiles and message order merged per protocol and frame, and
 //!   the typed [`wiretap_catalog`] ops that write them; the `byte_*` signals
 //!   offered for a frame without a catalogue. Reached by path.
+//! - [`query`] — the analytical query kernels over rows already read, answering in
+//!   [`wiretap_gateway`]'s result types. Reached by path.
 //!
 //! Per-byte-column statistics live in [`wiretap_checksum::columns`], beside the
 //! addressing they are indexed by. A caller that needs them
@@ -41,6 +43,7 @@ pub mod hypothesis;
 pub mod mirror;
 pub mod notes;
 pub mod order;
+pub mod query;
 pub mod roles;
 pub mod scan;
 pub mod structure;

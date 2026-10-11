@@ -2,8 +2,8 @@
 //! fields.
 //!
 //! Bounds are unix µs, durations ms, and `limit` counts the results returned,
-//! never the rows read. Turning a spec into the gateway's params, with their
-//! RFC3339 bounds, is the client's.
+//! never the rows read. [`QuerySpec::request`] turns a spec into the gateway's
+//! params, with their RFC 3339 bounds.
 
 use serde::{Deserialize, Serialize};
 

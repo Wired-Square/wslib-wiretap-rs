@@ -4,9 +4,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Health {
+    #[serde(default)]
     pub status: String,
+    #[serde(default)]
     pub version: String,
+    #[serde(default)]
     pub db_ok: bool,
+    #[serde(default)]
     pub schema: String,
 }
 
@@ -14,6 +18,7 @@ pub struct Health {
 pub struct DatabaseInfo {
     pub name: String,
     pub size_bytes: i64,
+    #[serde(default)]
     pub schema_state: String,
     pub schema_version: Option<i32>,
     pub busy_secs: Option<u64>,
@@ -27,6 +32,7 @@ pub struct DatabaseInfo {
 pub struct DatabaseList {
     pub databases: Vec<DatabaseInfo>,
     /// The version every database is headed for.
+    #[serde(default)]
     pub schema_version: i32,
 }
 

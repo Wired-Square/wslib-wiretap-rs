@@ -1,7 +1,7 @@
 //! The readings a Modbus discovery table shows side by side: one register as
 //! hex, u16, s16 and text, and two as u32, s32 and f32.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{printable, Endianness};
 
@@ -21,7 +21,45 @@ pub struct RegisterView {
 pub struct RegisterPairView {
     pub u32: u32,
     pub s32: i32,
+    /// Non-finite as JS `String()` spells it.
+    #[serde(with = "js_number")]
+    #[cfg_attr(
+        feature = "ts",
+        ts(type = r#"number | "NaN" | "Infinity" | "-Infinity""#)
+    )]
     pub f32: f32,
+}
+
+mod js_number {
+    use super::*;
+
+    pub fn serialize<S: Serializer>(value: &f32, serializer: S) -> Result<S::Ok, S::Error> {
+        match *value {
+            v if v.is_nan() => serializer.serialize_str("NaN"),
+            f32::INFINITY => serializer.serialize_str("Infinity"),
+            f32::NEG_INFINITY => serializer.serialize_str("-Infinity"),
+            v => serializer.serialize_f32(v),
+        }
+    }
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Spelt {
+        Number(f32),
+        Text(String),
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Error> {
+        match Spelt::deserialize(deserializer)? {
+            Spelt::Number(v) => Ok(v),
+            Spelt::Text(text) => match text.as_str() {
+                "NaN" => Ok(f32::NAN),
+                "Infinity" => Ok(f32::INFINITY),
+                "-Infinity" => Ok(f32::NEG_INFINITY),
+                _ => Err(serde::de::Error::custom(format!("no f32 spelt {text}"))),
+            },
+        }
+    }
 }
 
 /// A register's first two bytes, big-endian; a short register reads the bits
@@ -122,5 +160,25 @@ mod tests {
         assert!(f32_of([0x7F, 0xC0], [0x00, 0x00]).is_nan());
         assert_eq!(f32_of([0x7F, 0xC0], [0x00, 0x01]).to_bits(), 0x7FC0_0001);
         assert_eq!(f32_of([0x00, 0x00], [0x00, 0x01]), f32::from_bits(1));
+    }
+
+    #[test]
+    fn a_non_finite_float_round_trips_as_its_js_spelling() {
+        let pair = |f32| RegisterPairView {
+            u32: 0,
+            s32: 0,
+            f32,
+        };
+        for (value, spelt) in [
+            (f32::NAN, serde_json::json!("NaN")),
+            (f32::INFINITY, serde_json::json!("Infinity")),
+            (f32::NEG_INFINITY, serde_json::json!("-Infinity")),
+            (236.5, serde_json::json!(236.5)),
+        ] {
+            let json = serde_json::to_value(pair(value)).unwrap();
+            assert_eq!(json["f32"], spelt);
+            let back: RegisterPairView = serde_json::from_value(json).unwrap();
+            assert!(back.f32 == value || back.f32.is_nan() && value.is_nan());
+        }
     }
 }

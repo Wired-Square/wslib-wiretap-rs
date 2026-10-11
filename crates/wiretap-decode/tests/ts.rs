@@ -50,7 +50,7 @@ fn register_views_are_numbers_and_strings() {
     );
     assert_eq!(
         decl::<RegisterPairView>(),
-        "type RegisterPairView = { u32: number, s32: number, f32: number, };"
+        r#"type RegisterPairView = { u32: number, s32: number, f32: number | "NaN" | "Infinity" | "-Infinity", };"#
     );
 }
 

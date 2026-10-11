@@ -1,7 +1,7 @@
 //! Modbus register readings against the desktop's TypeScript `modbusValues.ts`,
-//! every case of `fixtures/modbus_values_golden.json`. The golden writes an f32
-//! as its exact number, or as `"NaN"`, `"Infinity"`, `"-Infinity"` or `"-0"`;
-//! NaN payloads don't survive it, so a NaN matches any NaN.
+//! every case of `fixtures/modbus_values_golden.json`. The golden spells a
+//! non-finite f32 as the pair serialises it, and writes `-0` as `"-0"`, where
+//! the pair writes a number.
 
 use std::path::PathBuf;
 
@@ -18,17 +18,6 @@ fn cases() -> Vec<Value> {
 
 fn bytes(v: &Value) -> Vec<u8> {
     serde_json::from_value(v.clone()).unwrap()
-}
-
-fn f32_matches(got: f32, expected: &Value) -> bool {
-    match expected.as_str() {
-        Some("NaN") => got.is_nan(),
-        Some("Infinity") => got == f32::INFINITY,
-        Some("-Infinity") => got == f32::NEG_INFINITY,
-        Some("-0") => got.to_bits() == (-0.0f32).to_bits(),
-        Some(other) => panic!("no f32 spelt {other}"),
-        None => got.to_bits() == (expected.as_f64().unwrap() as f32).to_bits(),
-    }
 }
 
 #[test]
@@ -48,13 +37,19 @@ fn every_case_matches_the_golden() {
             None => Endianness::Big,
         };
         let got = interpret_pair(&bytes(&input["first"]), &bytes(&input["second"]), order);
-        assert_eq!(Some(u64::from(got.u32)), expected["u32"].as_u64(), "{name}");
-        assert_eq!(Some(i64::from(got.s32)), expected["s32"].as_i64(), "{name}");
-        assert!(
-            f32_matches(got.f32, &expected["f32"]),
-            "{name}: {} against {}",
-            got.f32,
-            expected["f32"]
-        );
+        let json = serde_json::to_value(got).unwrap();
+        assert_eq!(json["u32"], expected["u32"], "{name}");
+        assert_eq!(json["s32"], expected["s32"], "{name}");
+        match &expected["f32"] {
+            Value::String(s) if s == "-0" => {
+                assert_eq!(got.f32.to_bits(), (-0.0f32).to_bits(), "{name}")
+            }
+            Value::String(_) => assert_eq!(json["f32"], expected["f32"], "{name}"),
+            number => assert_eq!(
+                got.f32.to_bits(),
+                (number.as_f64().unwrap() as f32).to_bits(),
+                "{name}"
+            ),
+        }
     }
 }

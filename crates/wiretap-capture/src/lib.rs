@@ -16,6 +16,11 @@ mod search;
 
 mod model;
 
+mod bytes;
+mod captures;
+mod events;
+mod meta;
+
 pub use rusqlite;
 pub use wiretap_protocol::can::Direction;
 
@@ -33,3 +38,16 @@ pub use read::{
 pub use search::search_frames;
 
 pub use model::{CaptureFrameInfo, CaptureKind, CaptureMetadata, TimestampedByte};
+
+pub use bytes::{
+    find_bytes_offset_for_timestamp, get_all_bytes, get_bytes_paginated, get_bytes_tail_rows,
+    insert_bytes,
+};
+pub use captures::{copy_capture_data, delete_capture_data, sweep_non_persistent};
+pub use events::{
+    delete_capture_event, insert_capture_event, list_capture_events, update_capture_event,
+};
+pub use meta::{
+    delete_capture_metadata, get_distinct_buses, load_all_capture_metadata, save_capture_metadata,
+    update_capture_name, update_capture_persistent,
+};

@@ -21,7 +21,12 @@ fn export_meta_and_modbus_config_are_snake_case() {
         "type ExportMeta = { name: string, version: number, \
          default_byte_order: Endianness, default_interval: number, };"
     );
-    assert!(ExportMeta::decl(&Config::new()).contains("default_interval: number,"));
+    for decl in [
+        ExportMeta::decl(&Config::new()),
+        ModbusExportConfig::decl(&Config::new()),
+    ] {
+        assert!(decl.contains("default_interval: number,"));
+    }
     assert_eq!(
         decl::<ModbusExportConfig>(),
         "type ModbusExportConfig = { device_address: number, register_base: number, \

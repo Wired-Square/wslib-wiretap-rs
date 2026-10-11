@@ -212,13 +212,14 @@ pub fn frames_ops(
     Ok((ops, findings))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ModbusExportConfig {
     pub device_address: u8,
     pub register_base: u8,
     pub register_type: RegisterType,
-    pub default_interval: u64,
+    /// Milliseconds, written rounded and at least 0.
+    pub default_interval: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -249,7 +250,7 @@ pub fn modbus_ops(
             config: ModbusConfigFields {
                 device_address: Some(config.device_address),
                 register_base: Some(config.register_base),
-                default_interval: Some(config.default_interval),
+                default_interval: Some(super::whole_ms(config.default_interval)),
                 ..Default::default()
             },
         },
@@ -492,7 +493,7 @@ mod tests {
             device_address: 7,
             register_base: 1,
             register_type,
-            default_interval: 500,
+            default_interval: 499.5,
         };
         let frames = |register_type| -> Vec<(String, u32)> {
             modbus_ops(&registers, &meta(0, 0.0), &config(register_type))[2..]
@@ -536,5 +537,15 @@ mod tests {
                 ..Default::default()
             }
         );
+        for ms in [-5.0, f64::NAN] {
+            let config = ModbusExportConfig {
+                default_interval: ms,
+                ..config(RegisterType::Input)
+            };
+            match &modbus_ops(&registers, &meta(0, 0.0), &config)[1] {
+                EditOp::SetModbusConfig { config } => assert_eq!(config.default_interval, Some(0)),
+                other => panic!("{other:?}"),
+            }
+        }
     }
 }

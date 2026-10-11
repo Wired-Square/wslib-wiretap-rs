@@ -14,13 +14,15 @@
 //! [`frame_id`] reads a serial message's frame id out of its bytes and formats
 //! one for display, [`hex`] reads a typed hex byte string, [`field`] is a
 //! bit field cut from a payload without a catalogue, and [`byte_name()`] the
-//! name such a field is saved under. [`groups`] is the Frame Calculator.
+//! name such a field is saved under. [`groups`] is the Frame Calculator and
+//! [`register`] a Modbus register's readings.
 
 mod byte_name;
 pub mod field;
 pub mod frame_id;
 pub mod groups;
 pub mod hex;
+pub mod register;
 
 pub use byte_name::{byte_name, parse_byte_name};
 pub use field::{PayloadField, ScaledField};

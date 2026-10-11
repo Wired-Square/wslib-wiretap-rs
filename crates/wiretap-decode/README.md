@@ -32,6 +32,9 @@ the catalogue model.
 - **`hex::parse_bytes`, `hex::parse_bytes_lenient`** — a typed hex byte string
   (`01 04`, `0x01,0x04`, `0104`): strict fails with a `HexError` naming the bad
   token, lenient drops it
+- **`register::interpret_register`, `register::interpret_pair`** — a Modbus
+  register as hex, u16, s16 and text; two as u32, s32 and f32 in either word
+  order
 
 ## Using it
 

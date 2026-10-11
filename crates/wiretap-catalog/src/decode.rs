@@ -13,6 +13,7 @@
 
 use crate::model::{Catalog, Endianness, Frame, Mux, Protocol, Signal, SignalFormat};
 use rust_decimal::prelude::ToPrimitive;
+use wiretap_checksum::resolve_byte_index;
 use wiretap_decode::{
     decode_text, extract_field, format_decimal, format_hex, format_unix_time, scale, BitOrder,
 };
@@ -293,15 +294,13 @@ fn extract_header_fields(catalog: &Catalog, raw_id: u32, bytes: &[u8], out: &mut
         Protocol::Can => {
             let Some(can) = &catalog.can else { return };
             for (name, field) in &can.fields {
+                let Some(mask) = field.mask else { continue };
                 // Shift defaults to the mask's trailing-zero count.
-                let shift = field.shift.unwrap_or_else(|| {
-                    if field.mask > 0 {
-                        field.mask.trailing_zeros()
-                    } else {
-                        0
-                    }
-                });
-                let value = ((raw_id & field.mask) >> shift) as u64;
+                let shift =
+                    field
+                        .shift
+                        .unwrap_or_else(|| if mask > 0 { mask.trailing_zeros() } else { 0 });
+                let value = ((raw_id & mask) >> shift) as u64;
                 let format = field.format.clone().unwrap_or_else(|| "hex".to_string());
                 out.header_fields.push(HeaderFieldValue {
                     name: name.clone(),
@@ -325,13 +324,14 @@ fn extract_header_fields(catalog: &Catalog, raw_id: u32, bytes: &[u8], out: &mut
                 if name == "id" {
                     continue;
                 }
-                let Some((start_byte, nbytes)) = mask_to_byte_position(field.mask) else {
+                let Some((start_byte, nbytes)) = field.byte_position() else {
                     continue;
                 };
+                let start_byte = resolve_byte_index(start_byte, bytes.len());
                 if start_byte >= bytes.len() {
                     continue;
                 }
-                let end = (start_byte + nbytes).min(bytes.len());
+                let end = (start_byte + nbytes.min(8) as usize).min(bytes.len());
                 let mut value: u64 = 0;
                 if field.endianness == Some(Endianness::Little) {
                     for (i, b) in bytes[start_byte..end].iter().enumerate() {
@@ -342,9 +342,10 @@ fn extract_header_fields(catalog: &Catalog, raw_id: u32, bytes: &[u8], out: &mut
                         value = (value << 8) | *b as u64;
                     }
                 }
-                // The mask is relative to the header start; shift it down to the field.
-                let shifted_mask = (field.mask as u64) >> (start_byte * 8);
-                value &= shifted_mask;
+                if let Some(mask) = field.mask {
+                    // The mask is relative to the header start; shift it down to the field.
+                    value &= (mask as u64) >> (start_byte * 8);
+                }
                 let format = field.format.clone().unwrap_or_else(|| "hex".to_string());
                 out.header_fields.push(HeaderFieldValue {
                     name: name.clone(),
@@ -734,6 +735,23 @@ bit_length = 8
         assert_eq!(len.value, 0x07);
         assert_eq!(len.display, "7");
         assert_eq!(decoded(&d, "V").value, 0xAB as f64);
+    }
+
+    #[test]
+    fn an_end_relative_serial_header_field_reads_from_the_end() {
+        let c = parse(
+            r#"
+[meta]
+name = "x"
+[meta.serial.fields]
+seq = { start_byte = -3, bytes = 2, endianness = "little", format = "decimal" }
+[frame.serial.0x10]
+length = 6
+"#,
+        );
+        let d = decode_by_id(&c, 0x10, &[0x10, 0, 0, 0x34, 0x12, 0xCC]).expect("decodes");
+        let seq = d.header_fields.iter().find(|h| h.name == "seq").unwrap();
+        assert_eq!(seq.value, 0x1234);
     }
 
     #[test]

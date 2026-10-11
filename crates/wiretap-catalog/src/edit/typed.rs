@@ -15,7 +15,8 @@ use super::{
     cmp_value, int_value, json_to_value, navigate_create, norm, op_upsert_frame, table_exists,
 };
 use crate::model::{
-    Catalog, Confidence, DisplayHint, EffectiveDefaults, Endianness, Frame, Protocol, RegisterType,
+    header_mask, Catalog, Confidence, DisplayHint, EffectiveDefaults, Endianness, Frame, Protocol,
+    RegisterType,
 };
 use crate::parse::parse_id;
 
@@ -105,7 +106,7 @@ pub struct CanConfigFields {
     pub default_extended: Option<bool>,
     pub default_fd: Option<bool>,
     pub frame_id_mask: Option<Mask>,
-    /// A blank name or mask drops the field.
+    /// A blank name, or a field with no mask or position, drops the field.
     pub fields: BTreeMap<String, HeaderFieldFields>,
 }
 
@@ -121,15 +122,20 @@ pub struct SerialConfigFields {
     /// Not written when 0.
     pub min_frame_length: Option<u32>,
     pub checksum: Option<SerialChecksumFields>,
-    /// A blank name or mask drops the field.
+    /// A blank name, or a field with no mask or position, drops the field.
     pub fields: BTreeMap<String, HeaderFieldFields>,
 }
 
-/// A header field of [`CanConfigFields`] or [`SerialConfigFields`].
+/// A header field of [`CanConfigFields`] or [`SerialConfigFields`]: a mask, or
+/// for serial a `start_byte` (end-relative when negative) and `bytes` (1 when
+/// absent). A position a mask over header bytes 0–3 can say is written as that mask.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(default)]
 pub struct HeaderFieldFields {
     pub mask: Mask,
+    #[serde(alias = "startByte")]
+    pub start_byte: Option<i32>,
+    pub bytes: Option<u32>,
     /// Not written when 0.
     pub shift: Option<u32>,
     /// Not written when `hex`.
@@ -323,18 +329,29 @@ fn mask(mask: &Option<Mask>) -> Result<Field, String> {
     Ok(opt(value.map(hex)))
 }
 
-fn header_fields(fields: &BTreeMap<String, HeaderFieldFields>) -> Result<Field, String> {
+fn header_fields(
+    fields: &BTreeMap<String, HeaderFieldFields>,
+    protocol: Protocol,
+) -> Result<Field, String> {
     let mut entries = Vec::new();
     for (name, f) in fields {
         let name = name.trim();
         if name.is_empty() {
             continue;
         }
-        let Some(mask) = f.mask.value()? else {
-            continue;
+        let (mask, start_byte, bytes) = match f.placement(name, protocol)? {
+            None => continue,
+            Some(Placement::Mask(mask)) => (val(hex(mask)), Field::Absent, Field::Absent),
+            Some(Placement::Position(start_byte, bytes)) => (
+                Field::Absent,
+                val(i64::from(start_byte)),
+                val(i64::from(bytes)),
+            ),
         };
         let field = Field::Record(vec![
-            ("mask", val(hex(mask))),
+            ("mask", mask),
+            ("start_byte", start_byte),
+            ("bytes", bytes),
             ("shift", uint(f.shift.filter(|s| *s != 0))),
             ("format", opt(f.format.as_deref().filter(|f| *f != "hex"))),
             (
@@ -346,6 +363,37 @@ fn header_fields(fields: &BTreeMap<String, HeaderFieldFields>) -> Result<Field, 
         entries.push((name.to_string(), field));
     }
     Ok(map(entries))
+}
+
+enum Placement {
+    Mask(u32),
+    /// One no mask can say.
+    Position(i32, u32),
+}
+
+impl HeaderFieldFields {
+    /// `None` when blank.
+    fn placement(&self, name: &str, protocol: Protocol) -> Result<Option<Placement>, String> {
+        match (self.mask.value()?, self.start_byte, self.bytes) {
+            (mask, None, None) => Ok(mask.map(Placement::Mask)),
+            _ if protocol != Protocol::Serial => {
+                Err(format!("CAN header field '{name}' takes a mask"))
+            }
+            (None, Some(start_byte), bytes) if bytes != Some(0) => {
+                let bytes = bytes.unwrap_or(1);
+                Ok(Some(header_mask(start_byte, bytes).map_or(
+                    Placement::Position(start_byte, bytes),
+                    Placement::Mask,
+                )))
+            }
+            (Some(_), _, _) => Err(format!(
+                "header field '{name}' takes a mask or a start byte and bytes, not both"
+            )),
+            _ => Err(format!(
+                "header field '{name}' needs a start byte and at least one byte"
+            )),
+        }
+    }
 }
 
 impl SignalFields {
@@ -531,7 +579,7 @@ impl CanConfigFields {
             ("default_extended", opt(self.default_extended)),
             ("default_fd", opt(self.default_fd)),
             ("frame_id_mask", mask(&self.frame_id_mask)?),
-            ("fields", header_fields(&self.fields)?),
+            ("fields", header_fields(&self.fields, Protocol::Can)?),
         ])
     }
 }
@@ -557,7 +605,7 @@ impl SerialConfigFields {
                 "min_frame_length",
                 uint(self.min_frame_length.filter(|n| *n > 0)),
             ),
-            ("fields", header_fields(&self.fields)?),
+            ("fields", header_fields(&self.fields, Protocol::Serial)?),
             ("checksum", checksum),
         ])
     }

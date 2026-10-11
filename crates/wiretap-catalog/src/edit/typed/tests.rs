@@ -494,6 +494,7 @@ fn header_field_defaults_are_not_written_and_masks_are_hex() {
                     shift: Some(0),
                     format: Some("hex".into()),
                     byte_order: Some(Endianness::Big),
+                    ..Default::default()
                 },
             )]),
             ..Default::default()
@@ -503,6 +504,139 @@ fn header_field_defaults_are_not_written_and_masks_are_hex() {
         text,
         "[meta.can]\nframe_id_mask = 0x1FFFFF00\n\n[meta.can.fields.source]\nmask = 0xFF\n"
     );
+}
+
+fn serial_fields(fields: &[(&str, HeaderFieldFields)]) -> EditOp {
+    EditOp::SetSerialConfig {
+        config: SerialConfigFields {
+            encoding: Some("slip".into()),
+            fields: fields
+                .iter()
+                .map(|(name, f)| (name.to_string(), f.clone()))
+                .collect(),
+            ..Default::default()
+        },
+    }
+}
+
+fn at(start_byte: i32, bytes: u32) -> HeaderFieldFields {
+    HeaderFieldFields {
+        start_byte: Some(start_byte),
+        bytes: Some(bytes),
+        ..Default::default()
+    }
+}
+
+fn masked(mask: u32) -> HeaderFieldFields {
+    HeaderFieldFields {
+        mask: Mask::Value(mask),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn a_header_position_a_mask_can_say_is_written_as_the_mask() {
+    let text = build(&[serial_fields(&[("id", at(1, 2))])]);
+    assert_eq!(
+        text,
+        "[meta.serial]\nencoding = \"slip\"\n\n[meta.serial.fields.id]\nmask = 0xFFFF00\n"
+    );
+}
+
+#[test]
+fn an_end_relative_or_past_byte_4_header_field_is_written_as_its_position() {
+    let text = build(&[
+        meta("ends", Protocol::Serial),
+        serial_fields(&[
+            ("id", at(-2, 2)),
+            ("seq", masked(0xFF00)),
+            ("source_address", at(4, 1)),
+        ]),
+    ]);
+    assert!(
+        text.contains("[meta.serial.fields.id]\nstart_byte = -2\nbytes = 2\n"),
+        "{text}"
+    );
+    assert!(
+        text.contains("[meta.serial.fields.source_address]\nstart_byte = 4\nbytes = 1\n"),
+        "{text}"
+    );
+    let serial = assert_clean(&text).serial.unwrap();
+    assert_eq!(
+        (serial.frame_id_start_byte, serial.frame_id_bytes),
+        (Some(-2), Some(2))
+    );
+    assert_eq!(serial.source_address_start_byte, Some(4));
+
+    let parsed: Vec<(&str, HeaderFieldFields)> = serial
+        .fields
+        .iter()
+        .map(|(name, f)| (name.as_str(), serde_json::from_value(json!(f)).unwrap()))
+        .collect();
+    assert_eq!(edit(&text, serial_fields(&parsed)), text);
+}
+
+#[test]
+fn writing_one_header_field_form_removes_the_other() {
+    let positioned = build(&[serial_fields(&[("id", at(-2, 2))])]);
+    let masked_text = edit(&positioned, serial_fields(&[("id", masked(0xFF))]));
+    assert!(masked_text.ends_with("[meta.serial.fields.id]\nmask = 0xFF\n"));
+    let back = edit(&masked_text, serial_fields(&[("id", at(-2, 2))]));
+    assert_eq!(back, positioned);
+}
+
+#[test]
+fn a_header_field_with_both_forms_or_half_a_position_refuses_the_op() {
+    let both = HeaderFieldFields {
+        mask: Mask::Value(0xFF),
+        ..at(0, 1)
+    };
+    assert_eq!(
+        apply_edit("", serial_fields(&[("id", both)])),
+        Err("header field 'id' takes a mask or a start byte and bytes, not both".into())
+    );
+    let no_start = HeaderFieldFields {
+        start_byte: None,
+        ..at(1, 1)
+    };
+    for half in [at(0, 0), no_start] {
+        assert_eq!(
+            apply_edit("", serial_fields(&[("id", half)])),
+            Err("header field 'id' needs a start byte and at least one byte".into())
+        );
+    }
+    let can = EditOp::SetCanConfig {
+        config: CanConfigFields {
+            fields: BTreeMap::from([("source".into(), at(0, 1))]),
+            ..Default::default()
+        },
+    };
+    assert_eq!(
+        apply_edit("", can),
+        Err("CAN header field 'source' takes a mask".into())
+    );
+}
+
+#[test]
+fn a_header_start_without_bytes_is_one_byte() {
+    let one = |start_byte| {
+        let start = HeaderFieldFields {
+            bytes: None,
+            ..at(start_byte, 1)
+        };
+        build(&[serial_fields(&[("id", start)])])
+    };
+    assert!(one(1).ends_with("[meta.serial.fields.id]\nmask = 0xFF00\n"));
+    assert!(one(-1).ends_with("[meta.serial.fields.id]\nstart_byte = -1\nbytes = 1\n"));
+}
+
+#[test]
+fn a_header_position_deserialises_from_either_case() {
+    for key in ["start_byte", "startByte"] {
+        let fields: HeaderFieldFields =
+            serde_json::from_value(json!({ key: -2, "bytes": 2 })).unwrap();
+        assert_eq!(fields, at(-2, 2));
+    }
 }
 
 #[test]

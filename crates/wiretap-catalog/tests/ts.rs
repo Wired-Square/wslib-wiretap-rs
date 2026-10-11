@@ -90,12 +90,13 @@ fn a_serial_config_keeps_its_served_camel_case_shape() {
     );
     assert_eq!(
         decl::<HeaderField>(),
-        "type HeaderField = { mask: number, shift?: number | null, format?: string | null, \
-         endianness?: Endianness | null, };"
+        "type HeaderField = { mask?: number | null, shift?: number | null, \
+         format?: string | null, endianness?: Endianness | null, startByte?: number | null, \
+         bytes?: number | null, };"
     );
     assert_eq!(
         decl::<HeaderFieldPosition>(),
-        "type HeaderFieldPosition = { name: string, mask: number, byteOrder: Endianness, \
-         format: string, startByte: number, bytes: number, };"
+        "type HeaderFieldPosition = { name: string, mask?: number | null, \
+         byteOrder: Endianness, format: string, startByte: number, bytes: number, };"
     );
 }

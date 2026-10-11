@@ -575,43 +575,37 @@ fn parse_header_fields(section: Option<&Value>, serial: bool) -> BTreeMap<String
         return out;
     };
     for (name, def) in table {
-        // mask, or (serial only) legacy start_byte + bytes.
-        let mask = if let Some(m) = as_u32(def, "mask") {
-            m
-        } else if serial {
-            match as_u32(def, "start_byte") {
-                Some(start_byte) => {
-                    let bytes = as_u32(def, "bytes").unwrap_or(1);
-                    let num_bits = bytes * 8;
-                    let base = if num_bits >= 32 {
-                        u32::MAX
-                    } else {
-                        (1u32 << num_bits) - 1
-                    };
-                    base.wrapping_shl(start_byte * 8)
-                }
-                None => continue,
-            }
-        } else {
-            continue;
+        let mut field = HeaderField {
+            shift: as_u32(def, "shift"),
+            format: as_str(def, "format")
+                .filter(|f| *f == "hex" || *f == "decimal")
+                .map(str::to_string),
+            endianness: endianness_at(def, "endianness")
+                .or_else(|| endianness_at(def, "byte_order")),
+            ..HeaderField::default()
         };
-
-        let endianness =
-            endianness_at(def, "endianness").or_else(|| endianness_at(def, "byte_order"));
-        let format = as_str(def, "format")
-            .filter(|f| *f == "hex" || *f == "decimal")
-            .map(str::to_string);
-        out.insert(
-            name.clone(),
-            HeaderField {
-                mask,
-                shift: as_u32(def, "shift"),
-                format,
-                endianness,
-            },
-        );
+        match (as_u32(def, "mask"), header_position(def).filter(|_| serial)) {
+            (Some(mask), _) => field.mask = Some(mask),
+            (None, Some(Some((start_byte, bytes)))) => {
+                field.start_byte = Some(start_byte);
+                field.bytes = Some(bytes);
+            }
+            _ => continue,
+        }
+        out.insert(name.clone(), field);
     }
     out
+}
+
+/// A header field's `start_byte` and `bytes` (1 when absent): `None` without a
+/// `start_byte`, `Some(None)` when the two are not a field.
+pub(crate) fn header_position(def: &Value) -> Option<Option<(i32, u32)>> {
+    get(def, "start_byte")?;
+    let bytes = match get(def, "bytes") {
+        None => Some(1),
+        Some(_) => as_u32(def, "bytes").filter(|b| *b > 0),
+    };
+    Some(byte_offset(def, "start_byte").flatten().zip(bytes))
 }
 
 fn parse_can_config(root: &Value) -> Option<CanConfig> {
@@ -647,8 +641,8 @@ fn parse_serial_config(root: &Value) -> Option<SerialConfig> {
     let checksum = get(section, "checksum").and_then(parse_checksum);
     let fields = parse_header_fields(get(section, "fields"), true);
 
-    // Derive byte positions from the field masks once, here, so consumers
-    // (WireTAP's adapter, decode) don't each re-derive them.
+    // Derive byte positions once, here, so consumers (WireTAP's adapter,
+    // decode) don't each re-derive them.
     let mut cfg = SerialConfig {
         encoding,
         byte_order: endianness_at(section, "byte_order"),
@@ -660,14 +654,13 @@ fn parse_serial_config(root: &Value) -> Option<SerialConfig> {
         ..SerialConfig::default()
     };
     for (name, field) in &cfg.fields {
-        let Some((start_byte, bytes)) = crate::decode::mask_to_byte_position(field.mask) else {
+        let Some((start_byte, bytes)) = field.byte_position() else {
             continue;
         };
-        let (start_byte, bytes) = (start_byte as u32, bytes as u32);
         let byte_order = field.endianness.unwrap_or(Endianness::Big);
         cfg.header_fields.push(HeaderFieldPosition {
             name: name.clone(),
-            mask: field.mask,
+            mask: field.mask.or_else(|| header_mask(start_byte, bytes)),
             byte_order,
             format: field.format.clone().unwrap_or_else(|| "hex".to_string()),
             start_byte,
@@ -1992,8 +1985,8 @@ bit_length = 16
         assert_eq!(s.byte_order, Some(Endianness::Big));
         assert_eq!(s.checksum.as_ref().unwrap().algorithm, "crc16");
         assert_eq!(s.checksum.as_ref().unwrap().byte_length, 2);
-        // legacy start_byte/bytes → mask 0xFFFF for the first two bytes.
-        assert_eq!(s.fields.get("id").unwrap().mask, 0xFFFF);
+        let id = s.fields.get("id").unwrap();
+        assert_eq!((id.mask, id.start_byte, id.bytes), (None, Some(0), Some(2)));
         // Byte positions derived from the masks at parse time.
         assert_eq!(s.frame_id_start_byte, Some(0));
         assert_eq!(s.frame_id_bytes, Some(2));
@@ -2004,8 +1997,65 @@ bit_length = 16
         assert_eq!(s.header_fields.len(), 2);
         let id_pos = s.header_fields.iter().find(|h| h.name == "id").unwrap();
         assert_eq!((id_pos.start_byte, id_pos.bytes), (0, 2));
+        assert_eq!(id_pos.mask, Some(0xFFFF));
         assert_eq!(id_pos.format, "hex");
         assert_eq!(c.frame(0xFDE0).unwrap().signals.len(), 1);
+    }
+
+    fn header_fields(fields: &str) -> SerialConfig {
+        let toml = format!("[meta]\nname = \"x\"\n[meta.serial.fields]\n{fields}");
+        Catalog::parse(&toml).unwrap().serial.unwrap_or_default()
+    }
+
+    #[test]
+    fn a_serial_header_field_is_placed_from_the_end_or_past_byte_4() {
+        let s = header_fields(
+            "id = { start_byte = -2, bytes = 2 }\nsource_address = { start_byte = 4, bytes = 1 }\n",
+        );
+        assert_eq!(
+            (s.frame_id_start_byte, s.frame_id_bytes),
+            (Some(-2), Some(2))
+        );
+        assert_eq!(
+            (s.source_address_start_byte, s.source_address_bytes),
+            (Some(4), Some(1))
+        );
+        assert!(s.header_fields.iter().all(|h| h.mask.is_none()));
+        let id = &s.fields["id"];
+        assert_eq!(
+            (id.mask, id.start_byte, id.bytes),
+            (None, Some(-2), Some(2))
+        );
+    }
+
+    #[test]
+    fn a_serial_header_mask_wins_over_a_position_and_a_start_alone_is_one_byte() {
+        let s = header_fields(
+            "id = { mask = 0xFF00, start_byte = -1, bytes = 1 }\n\
+             source_address = { start_byte = -3 }\n\
+             seq = { start_byte = 1, bytes = 0 }\n",
+        );
+        assert_eq!(s.fields["id"].mask, Some(0xFF00));
+        assert_eq!(s.fields["id"].start_byte, None);
+        assert_eq!(s.frame_id_start_byte, Some(1));
+        assert_eq!(
+            (s.source_address_start_byte, s.source_address_bytes),
+            (Some(-3), Some(1))
+        );
+        assert_eq!(
+            s.fields.keys().collect::<Vec<_>>(),
+            ["id", "source_address"]
+        );
+    }
+
+    #[test]
+    fn a_can_header_field_is_a_mask_only() {
+        let toml = "[meta]\nname = \"x\"\n[meta.can.fields]\n\
+                    sa = { mask = 0xFF, start_byte = 1, bytes = 1 }\nno = { start_byte = 1, bytes = 1 }\n";
+        let can = Catalog::parse(toml).unwrap().can.unwrap();
+        assert_eq!(can.fields.keys().collect::<Vec<_>>(), ["sa"]);
+        assert_eq!(can.fields["sa"].mask, Some(0xFF));
+        assert_eq!(can.fields["sa"].start_byte, None);
     }
 
     #[test]

@@ -12,7 +12,7 @@ use toml::Value;
 use crate::modbus::{ManifestError, ModbusManifest};
 use crate::modbus_rtu_stream::is_modelled_function;
 use crate::model::{DisplayHint, Endianness, FrameChecksum, ValidationError};
-use crate::parse::{parse_function_code_key, parse_id, parse_length_rule};
+use crate::parse::{header_position, parse_function_code_key, parse_id, parse_length_rule};
 
 fn err(field: impl Into<String>, message: impl Into<String>) -> ValidationError {
     ValidationError {
@@ -69,6 +69,7 @@ pub fn validate(content: &str) -> Vec<ValidationError> {
     }
 
     validate_serial_encoding(table, &mut errors);
+    validate_serial_header_fields(table, &mut errors);
 
     for protocol in ["can", "serial", "modbus"] {
         let frames = table
@@ -173,6 +174,31 @@ fn validate_serial_encoding(
             "frame.serial.config.encoding",
             "Encoding is required when serial frames exist. Add [frame.serial.config] with encoding = \"slip\", \"cobs\", \"raw\", or \"length_prefixed\".",
         ));
+    }
+}
+
+/// A serial header field is a `mask` or a `start_byte`, with `bytes` defaulting to 1.
+fn validate_serial_header_fields(
+    table: &toml::map::Map<String, Value>,
+    errors: &mut Vec<ValidationError>,
+) {
+    let fields = table
+        .get("meta")
+        .and_then(|m| m.get("serial"))
+        .and_then(|s| s.get("fields"))
+        .and_then(Value::as_table);
+    for (name, def) in fields.into_iter().flatten() {
+        let field = format!("meta.serial.fields.{name}");
+        let message = match header_position(def) {
+            Some(_) if def.get("mask").is_some() => {
+                "has both a mask and a start_byte; the mask is used"
+            }
+            Some(Some(_)) => continue,
+            Some(None) => "start_byte and bytes must be whole numbers, bytes at least 1",
+            None if def.get("bytes").is_some() => "bytes needs a start_byte",
+            None => continue,
+        };
+        errors.push(err(field, message));
     }
 }
 
@@ -1070,6 +1096,29 @@ start_bit = 0
 bit_length = 16
 "#;
         assert!(validate(toml).is_empty());
+    }
+
+    #[test]
+    fn a_serial_header_field_is_a_mask_or_a_start_with_bytes() {
+        let toml = r#"
+[meta]
+name = "x"
+[meta.serial.fields]
+id = { start_byte = -2, bytes = 2 }
+source_address = { mask = 0xFF }
+both = { mask = 0xFF, start_byte = 0, bytes = 1 }
+no_bytes = { start_byte = 1 }
+zero_bytes = { start_byte = 1, bytes = 0 }
+no_start = { bytes = 1 }
+"#;
+        assert_eq!(
+            fields(&validate(toml)),
+            [
+                "meta.serial.fields.both",
+                "meta.serial.fields.no_start",
+                "meta.serial.fields.zero_bytes",
+            ]
+        );
     }
 
     #[test]

@@ -626,12 +626,13 @@ fn push_mux_own<'a>(mux: &'a Mux, out: &mut Vec<&'a Signal>) {
 }
 
 /// A header field defined by a bitmask over the frame's header bytes (CAN ID
-/// bits, or serial header bytes).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// bits, or serial header bytes), or, for serial, by `start_byte` and `bytes`.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct HeaderField {
-    pub mask: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mask: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shift: Option<u32>,
     /// `hex` or `decimal` display.
@@ -639,21 +640,48 @@ pub struct HeaderField {
     pub format: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub endianness: Option<Endianness>,
+    /// End-relative when negative, as [`ChecksumConfig::start_byte`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_byte: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes: Option<u32>,
 }
 
-/// A serial header field with its byte position derived from the mask at parse
-/// time (so consumers don't re-derive it). One entry per `[meta.serial.fields]`
-/// field.
+impl HeaderField {
+    /// `(start_byte, bytes)`, from the position when there is one, else from the mask.
+    pub fn byte_position(&self) -> Option<(i32, u32)> {
+        match (self.start_byte, self.bytes) {
+            (Some(start_byte), Some(bytes)) => Some((start_byte, bytes)),
+            _ => crate::decode::mask_to_byte_position(self.mask?)
+                .map(|(start, bytes)| (start as i32, bytes as u32)),
+        }
+    }
+}
+
+/// The mask over header bytes 0–3 that says `bytes` from `start_byte`, if one can.
+pub fn header_mask(start_byte: i32, bytes: u32) -> Option<u32> {
+    let start = u32::try_from(start_byte).ok()?;
+    start
+        .checked_add(bytes)
+        .filter(|&end| bytes > 0 && end <= 4)?;
+    Some((((1u64 << (bytes * 8)) - 1) << (start * 8)) as u32)
+}
+
+/// A serial header field with its byte position derived at parse time (so
+/// consumers don't re-derive it). One entry per `[meta.serial.fields]` field.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct HeaderFieldPosition {
     pub name: String,
-    pub mask: u32,
+    /// Absent where no mask over header bytes 0–3 says the field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mask: Option<u32>,
     pub byte_order: Endianness,
     /// `hex` or `decimal` display.
     pub format: String,
-    pub start_byte: u32,
+    /// End-relative when negative.
+    pub start_byte: i32,
     pub bytes: u32,
 }
 
@@ -718,16 +746,16 @@ pub struct SerialConfig {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub fields: BTreeMap<String, HeaderField>,
     // ── Derived from `fields` at parse time (byte positions of named fields) ──
-    /// Byte position of the `id` field, when present.
+    /// Byte position of the `id` field, when present; end-relative when negative.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub frame_id_start_byte: Option<u32>,
+    pub frame_id_start_byte: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frame_id_bytes: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frame_id_byte_order: Option<Endianness>,
-    /// Byte position of the `source_address` field, when present.
+    /// Byte position of the `source_address` field, when present; end-relative when negative.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub source_address_start_byte: Option<u32>,
+    pub source_address_start_byte: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_address_bytes: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

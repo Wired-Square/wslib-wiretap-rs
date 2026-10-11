@@ -15,6 +15,7 @@ use wiretap_checksum::resolve_byte_index;
 use crate::model::{Catalog, Mux, Protocol, Signal};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct FrameLayout {
     /// The model's [`Frame::length`](crate::model::Frame::length): a Modbus
@@ -24,6 +25,7 @@ pub struct FrameLayout {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct LayoutRange {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -37,6 +39,7 @@ pub struct LayoutRange {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum RangeKind {
     Signal,

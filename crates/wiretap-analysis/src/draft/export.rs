@@ -9,7 +9,7 @@ use wiretap_catalog::edit::{
     CanConfigFields, EditOp, FrameFields, HeaderFieldFields, Mask, MetaFields, ModbusConfigFields,
     SerialChecksumFields, SerialConfigFields,
 };
-use wiretap_catalog::model::{Protocol, RegisterType, SerialConfig};
+use wiretap_catalog::model::{header_mask, Protocol, RegisterType, SerialConfig};
 use wiretap_decode::frame_id::format_frame_id;
 use wiretap_decode::Endianness;
 
@@ -33,11 +33,10 @@ pub struct ExportMeta {
     rename_all_fields = "camelCase"
 )]
 pub enum ExportFinding {
-    /// An id or source-address field ending past byte 4, where a header mask
-    /// cannot reach.
+    /// An id or source-address field of no bytes, which the catalogue cannot place.
     HeaderFieldOutOfRange {
         field: String,
-        start_byte: u32,
+        start_byte: i32,
         bytes: u32,
     },
 }
@@ -94,12 +93,6 @@ fn set_meta(meta: &ExportMeta, protocol: Protocol) -> EditOp {
     }
 }
 
-/// `None` when the field ends past byte 4.
-fn header_field_mask(start_byte: u32, bytes: u32) -> Option<u32> {
-    start_byte.checked_add(bytes).filter(|&end| end <= 4)?;
-    Some((((1u64 << (bytes * 8)) - 1) << (start_byte * 8)) as u32)
-}
-
 fn serial_config_fields(
     config: &SerialConfig,
     meta: &ExportMeta,
@@ -120,26 +113,29 @@ fn serial_config_fields(
             config.source_address_byte_order,
         ),
     ] {
-        let (Some(start_byte), Some(bytes)) = (start_byte, bytes) else {
+        let Some(start_byte) = start_byte else {
             continue;
         };
-        match header_field_mask(start_byte, bytes) {
-            Some(mask) => {
-                fields.insert(
-                    name.to_string(),
-                    HeaderFieldFields {
-                        mask: Mask::Value(mask),
-                        byte_order,
-                        ..Default::default()
-                    },
-                );
-            }
-            None => findings.push(ExportFinding::HeaderFieldOutOfRange {
+        let bytes = bytes.unwrap_or(1);
+        if bytes == 0 {
+            findings.push(ExportFinding::HeaderFieldOutOfRange {
                 field: name.into(),
                 start_byte,
                 bytes,
-            }),
+            });
+            continue;
         }
+        let mask = header_mask(start_byte, bytes);
+        fields.insert(
+            name.to_string(),
+            HeaderFieldFields {
+                mask: mask.map_or_else(Mask::default, Mask::Value),
+                start_byte: mask.is_none().then_some(start_byte),
+                bytes: mask.is_none().then_some(bytes),
+                byte_order,
+                ..Default::default()
+            },
+        );
     }
     let fields = SerialConfigFields {
         encoding: config.encoding.clone(),
@@ -399,12 +395,34 @@ mod tests {
     }
 
     #[test]
-    fn a_header_field_past_byte_four_is_a_finding_and_the_rest_is_written() {
+    fn an_end_relative_or_past_byte_four_header_field_is_written_as_its_position() {
+        let config = SerialConfig {
+            frame_id_start_byte: Some(-2),
+            frame_id_bytes: Some(2),
+            source_address_start_byte: Some(3),
+            source_address_bytes: Some(2),
+            ..Default::default()
+        };
+        let (ops, findings) = head_ops(Protocol::Serial, &meta(1, 0.0), &config);
+        assert!(findings.is_empty());
+        let written = serial_config(&ops);
+        for (name, start_byte, bytes) in [("id", -2, 2), ("source_address", 3, 2)] {
+            let field = &written.fields[name];
+            assert_eq!(field.mask, Mask::default(), "{name}");
+            assert_eq!(
+                (field.start_byte, field.bytes),
+                (Some(start_byte), Some(bytes))
+            );
+        }
+    }
+
+    #[test]
+    fn a_header_field_of_no_bytes_is_a_finding_and_a_start_alone_is_one_byte() {
         let config = SerialConfig {
             frame_id_start_byte: Some(0),
             frame_id_bytes: Some(1),
-            source_address_start_byte: Some(3),
-            source_address_bytes: Some(2),
+            source_address_start_byte: Some(-3),
+            source_address_bytes: Some(0),
             ..Default::default()
         };
         let (ops, findings) = head_ops(Protocol::Serial, &meta(1, 0.0), &config);
@@ -412,17 +430,24 @@ mod tests {
             findings,
             [ExportFinding::HeaderFieldOutOfRange {
                 field: "source_address".into(),
-                start_byte: 3,
-                bytes: 2
+                start_byte: -3,
+                bytes: 0
             }]
         );
         let written = serial_config(&ops);
         assert_eq!(written.fields.keys().collect::<Vec<_>>(), ["id"]);
         assert_eq!(written.fields["id"].mask, Mask::Value(0xFF));
+        let config = SerialConfig {
+            frame_id_start_byte: Some(1),
+            ..Default::default()
+        };
+        let (ops, none) = head_ops(Protocol::Serial, &meta(1, 0.0), &config);
+        assert!(none.is_empty());
+        assert_eq!(serial_config(&ops).fields["id"].mask, Mask::Value(0xFF00));
         assert_eq!(
             serde_json::to_value(&findings[0]).unwrap(),
             serde_json::json!({
-                "code": "headerFieldOutOfRange", "field": "source_address", "startByte": 3, "bytes": 2
+                "code": "headerFieldOutOfRange", "field": "source_address", "startByte": -3, "bytes": 0
             })
         );
     }

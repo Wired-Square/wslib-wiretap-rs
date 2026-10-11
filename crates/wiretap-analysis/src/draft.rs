@@ -44,9 +44,9 @@ impl ByteSpan {
 
     /// A serial frame's id, source address and checksum.
     pub fn serial(config: &SerialConfig) -> Vec<Self> {
-        let field = |start: Option<u32>, len: Option<u32>| {
+        let field = |start: Option<i32>, len: Option<u32>| {
             Some(Self {
-                start: start? as i32,
+                start: start?,
                 len: len?,
             })
         };
@@ -695,5 +695,17 @@ mod tests {
             .collect();
         assert_eq!(names, ["data_3"]);
         assert_eq!(spans[2].bytes(8), 7..8);
+    }
+
+    #[test]
+    fn an_end_relative_id_reserves_its_bytes_from_the_end() {
+        let config = SerialConfig {
+            frame_id_start_byte: Some(-3),
+            frame_id_bytes: Some(2),
+            ..Default::default()
+        };
+        let spans = ByteSpan::serial(&config);
+        assert_eq!(spans, [ByteSpan { start: -3, len: 2 }]);
+        assert_eq!(spans[0].bytes(8), 5..7);
     }
 }

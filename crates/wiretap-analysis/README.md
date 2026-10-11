@@ -54,7 +54,8 @@ checksum on most frame ids.
 - **`draft::head_ops`, `frames_ops`, `modbus_ops`** — Discovery's catalogue
   export: the meta and protocol config a catalogue opens with, a frame per id
   seen, and a Modbus frame per register found. A header field a mask cannot
-  reach is not written; it comes back as an `ExportFinding`. The `ts` feature
+  say is written as `start_byte` + `bytes`; one with no bytes is not written
+  and comes back as an `ExportFinding`. The `ts` feature
   derives `ts_rs::TS` on `ExportMeta`, `ExportFinding`, `ExportFrame`,
   `ModbusExportConfig` and `ModbusRegister`
 - **`query`** — the analytical query kernels over rows already read, oldest

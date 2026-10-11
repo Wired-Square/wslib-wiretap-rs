@@ -15,16 +15,22 @@ use super::{
     cmp_value, int_value, json_to_value, navigate_create, norm, op_upsert_frame, table_exists,
 };
 use crate::model::{
-    Catalog, Confidence, DisplayHint, EffectiveDefaults, Endianness, Frame, Protocol, RegisterType,
+    header_mask, Catalog, Confidence, DisplayHint, EffectiveDefaults, Endianness, Frame, Protocol,
+    RegisterType,
 };
 use crate::parse::parse_id;
 
 /// One signal, for [`super::EditOp::UpsertSignal`].
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(optional_fields = nullable))]
 #[serde(default)]
 pub struct SignalFields {
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub name: String,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub start_bit: u32,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub bit_length: u32,
     /// Not written when 1.
     pub factor: Option<f64>,
@@ -33,15 +39,28 @@ pub struct SignalFields {
     pub unit: Option<String>,
     /// Not written when false.
     pub signed: Option<bool>,
+    #[cfg_attr(
+        feature = "ts",
+        ts(optional = nullable, type = "Endianness | \"\" | null")
+    )]
     #[serde(alias = "endianness", deserialize_with = "blank_is_none")]
     pub byte_order: Option<Endianness>,
     pub min: Option<f64>,
     pub max: Option<f64>,
     pub format: Option<String>,
+    #[cfg_attr(
+        feature = "ts",
+        ts(optional = nullable, type = "Confidence | \"\" | null")
+    )]
     #[serde(deserialize_with = "blank_is_none")]
     pub confidence: Option<Confidence>,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(rename = "enum")]
     pub enum_map: BTreeMap<String, String>,
+    #[cfg_attr(
+        feature = "ts",
+        ts(optional = nullable, type = "string | Array<string> | null")
+    )]
     #[serde(deserialize_with = "one_or_many")]
     pub notes: Vec<String>,
     pub display: Option<DisplayHint>,
@@ -52,6 +71,8 @@ pub struct SignalFields {
 /// A value the frame would inherit anyway, from its `copy` or `mirror_of` source
 /// or a protocol default, is not written.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(optional_fields = nullable))]
 #[serde(default)]
 pub struct FrameFields {
     /// Bytes, but registers (or coils) for Modbus, which must cover at least one.
@@ -59,6 +80,10 @@ pub struct FrameFields {
     pub transmitter: Option<String>,
     #[serde(alias = "interval")]
     pub interval_ms: Option<u64>,
+    #[cfg_attr(
+        feature = "ts",
+        ts(optional = nullable, type = "string | Array<string> | null")
+    )]
     #[serde(deserialize_with = "one_or_many")]
     pub notes: Vec<String>,
     pub extended: Option<bool>,
@@ -66,6 +91,7 @@ pub struct FrameFields {
     pub bus: Option<u32>,
     pub copy: Option<String>,
     pub mirror_of: Option<String>,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub delimiter: Vec<u8>,
     /// Not written when the key already names the register.
     pub register_number: Option<u16>,
@@ -76,27 +102,40 @@ pub struct FrameFields {
 
 /// A mux selector, for [`super::EditOp::SetMux`]. Its cases are kept.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(optional_fields = nullable))]
 #[serde(default)]
 pub struct MuxFields {
     /// Blank is named by [`mux_name`].
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub name: String,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub start_bit: u32,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub bit_length: u32,
+    #[cfg_attr(
+        feature = "ts",
+        ts(optional = nullable, type = "string | Array<string> | null")
+    )]
     #[serde(deserialize_with = "one_or_many")]
     pub notes: Vec<String>,
 }
 
 /// `[meta]`, for [`super::EditOp::SetMeta`].
 #[derive(Debug, Clone, PartialEq, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct MetaFields {
     pub name: String,
     pub version: u32,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(default)]
     pub default_frame: Option<Protocol>,
 }
 
 /// `[meta.can]`, for [`super::EditOp::SetCanConfig`].
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(optional_fields = nullable))]
 #[serde(default)]
 pub struct CanConfigFields {
     /// Not written when it is decode's default and the file states none.
@@ -105,12 +144,15 @@ pub struct CanConfigFields {
     pub default_extended: Option<bool>,
     pub default_fd: Option<bool>,
     pub frame_id_mask: Option<Mask>,
-    /// A blank name or mask drops the field.
+    /// A blank name, or a field with no mask or position, drops the field.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub fields: BTreeMap<String, HeaderFieldFields>,
 }
 
 /// `[meta.serial]`, for [`super::EditOp::SetSerialConfig`].
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(optional_fields = nullable))]
 #[serde(default)]
 pub struct SerialConfigFields {
     pub encoding: Option<String>,
@@ -121,15 +163,24 @@ pub struct SerialConfigFields {
     /// Not written when 0.
     pub min_frame_length: Option<u32>,
     pub checksum: Option<SerialChecksumFields>,
-    /// A blank name or mask drops the field.
+    /// A blank name, or a field with no mask or position, drops the field.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub fields: BTreeMap<String, HeaderFieldFields>,
 }
 
-/// A header field of [`CanConfigFields`] or [`SerialConfigFields`].
+/// A header field of [`CanConfigFields`] or [`SerialConfigFields`]: a mask, or
+/// for serial a `start_byte` (end-relative when negative) and `bytes` (1 when
+/// absent). A position a mask over header bytes 0–3 can say is written as that mask.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(optional_fields = nullable))]
 #[serde(default)]
 pub struct HeaderFieldFields {
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub mask: Mask,
+    #[serde(alias = "startByte")]
+    pub start_byte: Option<i32>,
+    pub bytes: Option<u32>,
     /// Not written when 0.
     pub shift: Option<u32>,
     /// Not written when `hex`.
@@ -141,6 +192,7 @@ pub struct HeaderFieldFields {
 
 /// A bit mask: a number, or hex text with or without `0x`.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(untagged)]
 pub enum Mask {
     Value(u32),
@@ -175,17 +227,22 @@ impl Mask {
 
 /// `[meta.serial.checksum]`. The camelCase names are accepted as aliases.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct SerialChecksumFields {
     pub algorithm: String,
     #[serde(alias = "startByte")]
     pub start_byte: i32,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(alias = "byteLength", default = "one")]
     pub byte_length: u32,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(alias = "calcStartByte", default)]
     pub calc_start_byte: i32,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(alias = "calcEndByte", default)]
     pub calc_end_byte: Option<i32>,
     /// Not written when false.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(alias = "bigEndian", default)]
     pub big_endian: bool,
 }
@@ -222,6 +279,8 @@ fn blank_is_none<'de, D: Deserializer<'de>, T: DeserializeOwned>(
 
 /// `[meta.modbus]`, for [`super::EditOp::SetModbusConfig`]. Function codes are kept.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(optional_fields = nullable))]
 #[serde(default)]
 pub struct ModbusConfigFields {
     pub device_address: Option<u8>,
@@ -323,18 +382,29 @@ fn mask(mask: &Option<Mask>) -> Result<Field, String> {
     Ok(opt(value.map(hex)))
 }
 
-fn header_fields(fields: &BTreeMap<String, HeaderFieldFields>) -> Result<Field, String> {
+fn header_fields(
+    fields: &BTreeMap<String, HeaderFieldFields>,
+    protocol: Protocol,
+) -> Result<Field, String> {
     let mut entries = Vec::new();
     for (name, f) in fields {
         let name = name.trim();
         if name.is_empty() {
             continue;
         }
-        let Some(mask) = f.mask.value()? else {
-            continue;
+        let (mask, start_byte, bytes) = match f.placement(name, protocol)? {
+            None => continue,
+            Some(Placement::Mask(mask)) => (val(hex(mask)), Field::Absent, Field::Absent),
+            Some(Placement::Position(start_byte, bytes)) => (
+                Field::Absent,
+                val(i64::from(start_byte)),
+                val(i64::from(bytes)),
+            ),
         };
         let field = Field::Record(vec![
-            ("mask", val(hex(mask))),
+            ("mask", mask),
+            ("start_byte", start_byte),
+            ("bytes", bytes),
             ("shift", uint(f.shift.filter(|s| *s != 0))),
             ("format", opt(f.format.as_deref().filter(|f| *f != "hex"))),
             (
@@ -346,6 +416,37 @@ fn header_fields(fields: &BTreeMap<String, HeaderFieldFields>) -> Result<Field, 
         entries.push((name.to_string(), field));
     }
     Ok(map(entries))
+}
+
+enum Placement {
+    Mask(u32),
+    /// One no mask can say.
+    Position(i32, u32),
+}
+
+impl HeaderFieldFields {
+    /// `None` when blank.
+    fn placement(&self, name: &str, protocol: Protocol) -> Result<Option<Placement>, String> {
+        match (self.mask.value()?, self.start_byte, self.bytes) {
+            (mask, None, None) => Ok(mask.map(Placement::Mask)),
+            _ if protocol != Protocol::Serial => {
+                Err(format!("CAN header field '{name}' takes a mask"))
+            }
+            (None, Some(start_byte), bytes) if bytes != Some(0) => {
+                let bytes = bytes.unwrap_or(1);
+                Ok(Some(header_mask(start_byte, bytes).map_or(
+                    Placement::Position(start_byte, bytes),
+                    Placement::Mask,
+                )))
+            }
+            (Some(_), _, _) => Err(format!(
+                "header field '{name}' takes a mask or a start byte and bytes, not both"
+            )),
+            _ => Err(format!(
+                "header field '{name}' needs a start byte and at least one byte"
+            )),
+        }
+    }
 }
 
 impl SignalFields {
@@ -531,7 +632,7 @@ impl CanConfigFields {
             ("default_extended", opt(self.default_extended)),
             ("default_fd", opt(self.default_fd)),
             ("frame_id_mask", mask(&self.frame_id_mask)?),
-            ("fields", header_fields(&self.fields)?),
+            ("fields", header_fields(&self.fields, Protocol::Can)?),
         ])
     }
 }
@@ -557,7 +658,7 @@ impl SerialConfigFields {
                 "min_frame_length",
                 uint(self.min_frame_length.filter(|n| *n > 0)),
             ),
-            ("fields", header_fields(&self.fields)?),
+            ("fields", header_fields(&self.fields, Protocol::Serial)?),
             ("checksum", checksum),
         ])
     }

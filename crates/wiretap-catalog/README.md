@@ -59,7 +59,10 @@ decoding happens once in Rust rather than per consumer.
   guess, and `end_offset` — where it sat in the input, which
   against `bytes_fed()` is what back-dates the burst a sync releases at once.
   `ModbusRtuOptions` carries a line's settings as one value and builds the
-  stream; `ModbusRtuOptions::tapped()` is the tap's
+  stream; `ModbusRtuOptions::tapped()` is the tap's. `RtuSettings` is what a
+  user picks for a line, serde in snake case with every field defaulted;
+  `ModbusRtuOptions::from_settings(&settings, Some(&catalog))` unions it with
+  the catalogue's codes and rules
 - **`modbus_rtu_tap::RtuTap`** — that stream off a serial line, on the caller's
   clock: `push` takes one read's bytes and the time it returned, and each
   `TappedMessage` is stamped when its last byte arrived, back-dated by
@@ -72,6 +75,15 @@ decoding happens once in Rust rather than per consumer.
   frame statistics and typed `Evidence`; the wording is the caller's. `Unframed`
   names the undeclared codes and broadcasts RTU skipped, and the declared codes
   whose length rules rejected every message
+- **`serial_framing::SerialFramer`** — a serial byte stream cut into
+  `SerialFrame`s by one `FramingEncoding`: SLIP and a delimiter from
+  `wiretap-protocol`, Modbus RTU from `RtuSettings` unioned with a catalogue's
+  codes. `flush` marks a trailing residue `incomplete`, and `abandoned_frames`
+  counts SLIP frames that outgrew the cap. `FramingMode` is the snake-case name
+  a UI picks, `FramingEncoding::from_mode` its defaults, `checked` refuses a
+  framing that would release every byte as its own frame, and `FrameIdConfig`
+  says where a frame's id sits. `LineSettings::parse` reads a line from its
+  stored fields, absent ones as 8N1's
 - **`modbus::decode_rtu_message`** — a recovered message as signals: its
   header as `Modbus_{Request|Response}_{Device,Function,Register,Quantity,Exception}`,
   and its register block through the catalogue's register frame, else as
@@ -89,6 +101,17 @@ decoding happens once in Rust rather than per consumer.
   comment-preserving and idempotent
 - **`mirror`** — `MirrorTracker` / `MirrorVerdict`, live validation that a
   mirrored frame still matches the frame it copies
+- **`text`** — a catalogue's source as text, without parsing it: `diff_lines`,
+  the editor's full-context line diff as `DiffRow`s with 1-based line numbers
+  (serde in camel case; past 25M cells of LCS table it falls back to remove-all,
+  add-all); `meta_name`, `[meta].name` from a file that may not validate; and
+  the filename rules, `reject_unsafe_filename`, `sanitise_filename`,
+  `suggested_filename` and `next_free_filename`, refusing with `UnsafeFilename`
+
+The off-by-default `ts` feature derives `ts_rs::TS` on `DiffKind`, `DiffRow`
+(as `DiffLine`), `RtuSettings` (as `ModbusRtuOptions`), `FramingMode` and
+`FrameIdConfig`, for an app to export;
+nothing here writes a `.ts` file.
 
 ## Using it
 

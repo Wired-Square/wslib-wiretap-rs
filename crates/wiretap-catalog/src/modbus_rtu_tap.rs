@@ -69,6 +69,15 @@ pub enum InvalidLineSettings {
     StopBits(u8),
 }
 
+/// Why [`LineSettings::parse`] refused a line.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum LineSettingsError {
+    #[error(transparent)]
+    Parity(#[from] UnknownParity),
+    #[error(transparent)]
+    Line(#[from] InvalidLineSettings),
+}
+
 /// A serial line's rate and character framing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LineSettings {
@@ -91,6 +100,27 @@ impl LineSettings {
             .saturating_mul(bits * 1_000_000)
             .checked_div(u64::from(self.baud));
         Duration::from_micros(micros.unwrap_or(0))
+    }
+
+    /// An absent field reads as 8N1's, and so does an empty parity; a present
+    /// one must be valid.
+    pub fn parse(
+        baud: u32,
+        data_bits: Option<u8>,
+        stop_bits: Option<u8>,
+        parity: Option<&str>,
+    ) -> Result<Self, LineSettingsError> {
+        let parity = parity
+            .filter(|p| !p.is_empty())
+            .map_or(Ok(Parity::None), str::parse)?;
+        let line = Self {
+            baud,
+            data_bits: data_bits.unwrap_or(8),
+            parity,
+            stop_bits: stop_bits.unwrap_or(1),
+        };
+        line.validate()?;
+        Ok(line)
     }
 
     pub fn validate(&self) -> Result<(), InvalidLineSettings> {
@@ -336,6 +366,35 @@ pub(crate) mod tests {
         assert_eq!(line(8, 0).validate(), Err(InvalidLineSettings::StopBits(0)));
         assert_eq!(line(8, 3).validate(), Err(InvalidLineSettings::StopBits(3)));
         assert_eq!(line(9, 3).validate(), Err(InvalidLineSettings::DataBits(9)));
+    }
+
+    #[test]
+    fn an_absent_line_field_reads_as_8n1() {
+        let parsed = |baud, data_bits, stop_bits, parity| {
+            LineSettings::parse(baud, data_bits, stop_bits, parity)
+                .unwrap()
+                .to_string()
+        };
+        assert_eq!(parsed(9600, None, None, None), "9600 8N1");
+        assert_eq!(parsed(9600, None, None, Some("")), "9600 8N1");
+        assert_eq!(parsed(19200, Some(7), Some(2), Some("Even")), "19200 7E2");
+    }
+
+    #[test]
+    fn a_present_but_invalid_line_field_is_refused() {
+        assert_eq!(
+            LineSettings::parse(9600, Some(9), None, None),
+            Err(InvalidLineSettings::DataBits(9).into())
+        );
+        assert_eq!(
+            LineSettings::parse(9600, None, Some(0), None),
+            Err(InvalidLineSettings::StopBits(0).into())
+        );
+        let mark = LineSettings::parse(9600, None, None, Some("mark")).unwrap_err();
+        assert_eq!(
+            mark.to_string(),
+            "parity must be none, even or odd, got \"mark\""
+        );
     }
 
     #[test]

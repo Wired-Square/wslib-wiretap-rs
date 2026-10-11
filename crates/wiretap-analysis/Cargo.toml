@@ -18,6 +18,9 @@ ts-rs = { version = "12", optional = true }
 
 [features]
 ts = ["dep:ts-rs", "wiretap-gateway/ts"]
+testing = []
 
 [dev-dependencies]
+# So the workspace's `cargo test --all`, which names no features, has the fixture.
+wiretap-analysis = { path = ".", features = ["testing"] }
 serde_json = "1"

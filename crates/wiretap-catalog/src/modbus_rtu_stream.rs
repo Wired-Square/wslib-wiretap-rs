@@ -1043,6 +1043,83 @@ impl ModbusRtuOptions {
         stream.any_function = self.any_function;
         stream
     }
+
+    /// A line's options: what `catalog` declares, with `settings` on top. The
+    /// codes and both opt-ins union; the address and the CRC policy are the
+    /// settings'.
+    pub fn from_settings(settings: &RtuSettings, catalog: Option<&Catalog>) -> Self {
+        let crc = if settings.validate_crc {
+            CrcPolicy::Strict
+        } else {
+            CrcPolicy::Lenient
+        };
+        let mut options = catalog
+            .map(Catalog::rtu_options)
+            .unwrap_or_default()
+            .with_vendor_functions(&settings.vendor_functions)
+            .with_device_address(settings.device_address)
+            .with_crc_policy(crc);
+        options.allow_broadcast |= settings.allow_broadcast;
+        options.any_function |= settings.any_function;
+        options
+    }
+}
+
+/// A line's RTU settings as a user picks and stores them, before a catalogue
+/// adds its codes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(rename = "ModbusRtuOptions"))]
+#[serde(default)]
+pub struct RtuSettings {
+    /// Device address filter (1-247). `None` syncs on any valid address.
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub device_address: Option<u8>,
+    /// Whether a message has to pass its CRC to be framed. `false` is a lenient
+    /// mode, not "no framing" — see `CrcPolicy::Lenient`.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
+    pub validate_crc: bool,
+    /// Function codes the RTU length rules do not model but this line carries.
+    /// Framed by CRC search instead; empty leaves stock Modbus untouched.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
+    pub vendor_functions: Vec<u8>,
+    /// Whether address 0 may start a message, for a master that broadcasts.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
+    pub allow_broadcast: bool,
+    /// Frame every function code, declared or not. What a tap on an unknown
+    /// line wants, at the cost of a fabricated message about once in 260
+    /// resyncs — see `ModbusRtuStream::frame_any_function`.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
+    pub any_function: bool,
+}
+
+/// Stock Modbus: CRC enforced, no vendor codes, no broadcast.
+impl Default for RtuSettings {
+    fn default() -> Self {
+        Self {
+            device_address: None,
+            validate_crc: true,
+            vendor_functions: Vec::new(),
+            allow_broadcast: false,
+            any_function: false,
+        }
+    }
+}
+
+impl RtuSettings {
+    /// A line somebody else already framed, such as an archive's whole
+    /// messages: every code and address interprets.
+    pub fn tapped() -> Self {
+        Self {
+            any_function: true,
+            allow_broadcast: true,
+            ..Default::default()
+        }
+    }
+
+    /// A stream for this line with no catalogue.
+    pub fn stream(&self) -> ModbusRtuStream {
+        ModbusRtuOptions::from_settings(self, None).stream()
+    }
 }
 
 pub(crate) fn rtu_options_for(codes: &BTreeMap<u8, FunctionCode>) -> ModbusRtuOptions {
@@ -2576,5 +2653,55 @@ allow_broadcast = true
         let mut t = strict(Some(1));
         assert!(t.push_bytes(&with_crc("01030000007E")).is_empty());
         assert!(t.interpret(&with_crc("01030000007E")).is_some());
+    }
+
+    #[test]
+    fn the_catalogues_codes_and_rules_union_under_the_pickers_settings() {
+        let picker = RtuSettings {
+            device_address: Some(3),
+            validate_crc: false,
+            vendor_functions: vec![0x20],
+            allow_broadcast: true,
+            any_function: false,
+        };
+        let manual = ModbusRtuOptions::default()
+            .with_device_address(Some(3))
+            .with_crc_policy(CrcPolicy::Lenient)
+            .allow_broadcast();
+
+        assert_eq!(
+            ModbusRtuOptions::from_settings(&picker, Some(&dispatch_catalogue())),
+            manual
+                .clone()
+                .with_vendor_functions(&[0x60, 0x65, 0x20])
+                .with_vendor_lengths(&[DISPATCH])
+        );
+        assert_eq!(
+            ModbusRtuOptions::from_settings(&picker, None),
+            manual.with_vendor_functions(&[0x20])
+        );
+    }
+
+    #[test]
+    fn stock_and_tapped_settings_are_the_stock_and_tapped_options() {
+        assert_eq!(
+            ModbusRtuOptions::from_settings(&RtuSettings::default(), None),
+            ModbusRtuOptions::default()
+        );
+        assert_eq!(
+            ModbusRtuOptions::from_settings(&RtuSettings::tapped(), None),
+            ModbusRtuOptions::tapped()
+        );
+    }
+
+    #[test]
+    fn rtu_settings_keep_the_desktops_snake_case_shape_and_defaults() {
+        let defaults: RtuSettings = serde_json::from_str("{}").unwrap();
+        assert_eq!(defaults, RtuSettings::default());
+        assert!(defaults.validate_crc);
+        assert_eq!(
+            serde_json::to_string(&RtuSettings::tapped()).unwrap(),
+            r#"{"device_address":null,"validate_crc":true,"vendor_functions":[],"allow_broadcast":true,"any_function":true}"#
+        );
     }
 }

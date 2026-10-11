@@ -1,5 +1,6 @@
-//! The TCP connect Modbus and GVRET share: the endpoint is resolved on every
-//! connect, and each address it resolves to is tried within one budget.
+//! Name resolution, and the TCP connect Modbus and GVRET share: the endpoint is
+//! resolved on every connect, and each address it resolves to is tried within
+//! one budget.
 
 use std::{
     io,
@@ -7,8 +8,10 @@ use std::{
     time::Duration,
 };
 
+use tokio::net::{lookup_host, ToSocketAddrs};
+#[cfg(any(feature = "modbus-tcp", feature = "can-gvret"))]
 use tokio::{
-    net::{lookup_host, TcpStream},
+    net::TcpStream,
     time::{timeout, timeout_at, Instant},
 };
 
@@ -53,7 +56,31 @@ pub fn tcp_endpoint(host: &str, port: u16) -> String {
     }
 }
 
+/// Every address `host` (a name or an IP literal) resolves to on `port`,
+/// through the system resolver; never empty on `Ok`.
+pub async fn resolve(
+    host: &str,
+    port: u16,
+    timeout: Duration,
+) -> Result<Vec<SocketAddr>, ResolveError> {
+    tokio::time::timeout(timeout, lookup((host, port)))
+        .await
+        .unwrap_or(Err(ResolveError::TimedOut))
+}
+
+async fn lookup(target: impl ToSocketAddrs) -> Result<Vec<SocketAddr>, ResolveError> {
+    let addrs: Vec<SocketAddr> = lookup_host(target)
+        .await
+        .map_err(ResolveError::Io)?
+        .collect();
+    if addrs.is_empty() {
+        return Err(ResolveError::NoAddresses);
+    }
+    Ok(addrs)
+}
+
 /// `connect_timeout` covers resolving and every address tried.
+#[cfg(any(feature = "modbus-tcp", feature = "can-gvret"))]
 pub(crate) async fn connect(
     endpoint: &str,
     connect_timeout: Duration,
@@ -63,11 +90,10 @@ pub(crate) async fn connect(
         endpoint: endpoint.to_owned(),
         reason,
     };
-    let addrs: Vec<SocketAddr> = match timeout_at(deadline, lookup_host(endpoint)).await {
-        Ok(Ok(addrs)) => addrs.collect(),
-        Ok(Err(e)) => return Err(resolve_failed(ResolveError::Io(e))),
-        Err(_) => return Err(resolve_failed(ResolveError::TimedOut)),
-    };
+    let addrs = timeout_at(deadline, lookup(endpoint))
+        .await
+        .unwrap_or(Err(ResolveError::TimedOut))
+        .map_err(resolve_failed)?;
     connect_any(&addrs, deadline)
         .await
         .unwrap_or_else(|| Err(resolve_failed(ResolveError::NoAddresses)))
@@ -76,6 +102,7 @@ pub(crate) async fn connect(
 /// Each address gets an equal share of what is left of the budget, so one that
 /// silently drops the SYN cannot starve the rest. `None` when there is nothing
 /// to try.
+#[cfg(any(feature = "modbus-tcp", feature = "can-gvret"))]
 async fn connect_any(
     addrs: &[SocketAddr],
     deadline: Instant,
@@ -113,6 +140,33 @@ mod tests {
 
     fn deadline_in(millis: u64) -> Instant {
         Instant::now() + Duration::from_millis(millis)
+    }
+
+    #[tokio::test]
+    async fn an_ip_literal_resolves_and_a_maximal_timeout_does_not_overflow() {
+        let addrs = resolve("127.0.0.1", 8080, Duration::MAX).await;
+        assert_eq!(addrs.unwrap(), ["127.0.0.1:8080".parse().unwrap()]);
+    }
+
+    /// `.invalid` is reserved (RFC 6761) and never resolves, so this exercises
+    /// the system resolver without depending on the host's DNS.
+    #[tokio::test]
+    async fn an_unresolvable_name_is_a_resolve_error() {
+        let err = resolve("wiretap-test.invalid", 23, Duration::from_secs(5))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, ResolveError::Io(_) | ResolveError::NoAddresses),
+            "{err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_lookup_past_its_deadline_times_out() {
+        let err = resolve("wiretap-test.invalid", 23, Duration::ZERO)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, ResolveError::TimedOut), "{err:?}");
     }
 
     #[test]

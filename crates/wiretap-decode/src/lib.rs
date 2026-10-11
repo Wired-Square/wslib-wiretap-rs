@@ -14,11 +14,12 @@
 //! [`frame_id`] reads a serial message's frame id out of its bytes and formats
 //! one for display, [`hex`] reads a typed hex byte string, [`field`] is a
 //! bit field cut from a payload without a catalogue, and [`byte_name()`] the
-//! name such a field is saved under.
+//! name such a field is saved under. [`groups`] is the Frame Calculator.
 
 mod byte_name;
 pub mod field;
 pub mod frame_id;
+pub mod groups;
 pub mod hex;
 
 pub use byte_name::{byte_name, parse_byte_name};
@@ -250,6 +251,15 @@ pub fn decode_text(bytes: &[u8], start_bit: u32, bit_length: u32) -> String {
         }
     }
     out
+}
+
+/// A byte as its character, or `.` outside printable ASCII.
+pub(crate) fn printable(byte: u8) -> char {
+    if (0x20..=0x7e).contains(&byte) {
+        byte as char
+    } else {
+        '.'
+    }
 }
 
 /// Format a unix timestamp as `YYYY-MM-DD HH:MM:SS` (UTC). The TS version uses

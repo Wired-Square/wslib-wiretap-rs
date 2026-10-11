@@ -10,6 +10,9 @@ the catalogue model.
   the word-swap rule lives, and the one that knows a coil block is read
   least-significant-bit-first and never swapped (`BitOrder`)
 - **`extract_bits`** — a bitfield as `f64`, honouring endianness and sign
+- **`groups::decode_groups`, `groups::parse_sizes`** — the Frame Calculator: a
+  payload cut into 1, 2, 4 or 8-byte words or a repeating list of bit widths,
+  each read at any width as unsigned, two's, ones' and sign-magnitude
 - **`apply_word_swap`** — 16-bit "CDAB" word order
 - **`scale`** — `raw × factor + offset` as an exact `Decimal`, so `3374 × 0.1`
   is `337.4` and not `337.40000000000003`; `None` when an input is non-finite

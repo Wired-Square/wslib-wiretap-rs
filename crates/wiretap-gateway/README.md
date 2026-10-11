@@ -38,7 +38,9 @@ nothing here writes a `.ts` file.
 Field names, types and order are the wire contract. No type refuses an unknown
 field, so a newer gateway can add one; fields a pre-0.1.4 gateway leaves out
 (`max_len`, `len`) parse as `None`, and the `/frames` row's `is_rtr`, `is_brs`
-and `is_esi`, which a gateway before schema v4 leaves out, as `false`. A request
+and `is_esi`, which a gateway before schema v4 leaves out, as `false`. `Health`'s
+fields, a database's `schema_state` and the list's `schema_version`, which an
+older gateway may leave out, parse as empty, `false` or `0`. A request
 whose `protocol` is `None` leaves the key out, which the gateway reads as CAN.
 
 ## The admin API
@@ -75,8 +77,11 @@ its clones, and those from `with_endpoint`, share one connection pool and one
 registry of running queries, which `cancel` reaches by query id whichever
 gateway runs it. `db(name, protocol)` reads one database as one protocol:
 inventory, payloads, time bounds, events, import, activity, the queries and a
-`FrameCursor` over `/frames`. A failure is a `ClientError`, whose text is the
-gateway's own `error` when it sent one.
+`FrameCursor` over `/frames`. The admin API is `daemons`, `stored_catalogue`,
+`assign_catalogue` and `unassign_catalogue`, the last two answering an
+`AssignOutcome`: `Done` with any warnings, `Rejected` with its findings, or
+`Conflict` with the SHA assigned now. A failure is a `ClientError`, whose text is
+the gateway's own `error` when it sent one.
 
 It runs on the caller's tokio runtime and brings no TLS. For `https://`, enable a
 TLS backend on `reqwest` in your own manifest, and Cargo unifies it in:

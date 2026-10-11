@@ -3,6 +3,7 @@
 //! It needs a tokio runtime to run on, and brings no TLS: a consumer enables
 //! reqwest's `rustls-tls` or `native-tls` itself.
 
+mod admin;
 mod db;
 mod frames;
 
@@ -16,6 +17,7 @@ use serde::Serialize;
 
 use crate::{DatabaseList, ErrorBody, Health, RequestError};
 
+pub use admin::AssignOutcome;
 pub use db::Db;
 pub use frames::{ArchiveFrame, FrameCursor};
 
@@ -276,20 +278,31 @@ impl Drop for Listed<'_> {
     }
 }
 
-/// The answer if it is a success, else its status and `error` text.
-async fn send(request: reqwest::RequestBuilder) -> Result<reqwest::Response, ClientError> {
-    let response = request
+/// The answer, whatever its status.
+async fn answer(request: reqwest::RequestBuilder) -> Result<reqwest::Response, ClientError> {
+    request
         .send()
         .await
-        .map_err(|e| ClientError::Transport(cause_chain(&e)))?;
+        .map_err(|e| ClientError::Transport(cause_chain(&e)))
+}
+
+/// The answer if it is a success, else its status and `error` text.
+async fn send(request: reqwest::RequestBuilder) -> Result<reqwest::Response, ClientError> {
+    let response = answer(request).await?;
     let status = response.status();
     if status.is_success() {
         return Ok(response);
     }
-    Err(ClientError::Status {
+    Err(refusal(status, &response.bytes().await.unwrap_or_default()))
+}
+
+fn refusal(status: reqwest::StatusCode, body: &[u8]) -> ClientError {
+    ClientError::Status {
         code: status.as_u16(),
-        error: response.json::<ErrorBody>().await.ok().map(|b| b.error),
-    })
+        error: serde_json::from_slice::<ErrorBody>(body)
+            .ok()
+            .map(|b| b.error),
+    }
 }
 
 async fn decode<T: DeserializeOwned>(response: reqwest::Response) -> Result<T, ClientError> {

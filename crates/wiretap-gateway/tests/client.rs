@@ -6,7 +6,9 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 use serde_json::{json, Value};
-use wiretap_gateway::client::{ArchiveFrame, ClientError, ClientOptions, GatewayClient};
+use wiretap_gateway::client::{
+    ArchiveFrame, AssignOutcome, ClientError, ClientOptions, GatewayClient,
+};
 use wiretap_gateway::*;
 
 #[derive(Debug, Clone)]
@@ -505,12 +507,8 @@ async fn a_frame_cursor_follows_the_gateways_cursor_to_the_end() {
     let gateway = client(&base_url, "");
     let mut cursor = gateway.db("site", Protocol::Can).frames(page(40));
     let mut ids = Vec::new();
-    loop {
-        let frames = cursor.next_page().await.unwrap();
-        if frames.is_empty() {
-            break;
-        }
-        ids.extend(frames.iter().map(|f| f.id));
+    while !cursor.is_done() {
+        ids.extend(cursor.next_page().await.unwrap().iter().map(|f| f.id));
     }
     assert_eq!(ids, (0..60).collect::<Vec<_>>());
     assert_eq!(
@@ -536,7 +534,9 @@ async fn a_frame_cursor_stops_at_its_total_and_names_its_protocol_and_bounds() {
         .frames(query)
         .at_most(45);
     assert_eq!(cursor.next_page().await.unwrap().len(), 40);
+    assert!(!cursor.is_done());
     assert_eq!(cursor.next_page().await.unwrap().len(), 5);
+    assert!(cursor.is_done());
     assert!(cursor.next_page().await.unwrap().is_empty());
     assert_eq!(
         lines(&log),
@@ -626,4 +626,181 @@ fn an_inventory_length_code_becomes_a_length_for_can_only() {
 fn the_gateways_max_len_is_taken_over_the_code_when_served() {
     assert_eq!(entry(9, Some(20)).max_len_for(Protocol::Can), 20);
     assert_eq!(entry(9, None).max_len_for(Protocol::Can), 12);
+}
+
+const A: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const B: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+fn finding() -> CatalogFinding {
+    CatalogFinding {
+        field: "meta.name".into(),
+        message: "missing".into(),
+    }
+}
+
+fn assign() -> AssignCatalog {
+    AssignCatalog {
+        daemon_id: "debian".into(),
+        interface: "/dev/ttyUSB0".into(),
+        content: "[meta]\r\nname = \"Site\"\r\n".into(),
+        provenance: Provenance::default(),
+        expected: Some(String::new()),
+    }
+}
+
+fn unassign(expected: Option<&str>) -> UnassignParams {
+    UnassignParams {
+        daemon_id: "debian".into(),
+        interface: "/dev/ttyUSB0".into(),
+        expected: expected.map(String::from),
+    }
+}
+
+#[tokio::test]
+async fn the_daemons_and_a_stored_catalogue_are_read_with_the_key() {
+    let (base_url, log) = gateway(|seen| match seen.path.as_str() {
+        "/v1/admin/daemons" => ok(json!({ "daemons": [{ "daemon_id": "debian", "devices": [] }] })),
+        _ => ok(json!({
+            "blob_sha": A, "content": "x = 1\r\n", "provenance": { "path": "cats/site.toml" },
+            "created_at_us": 1,
+        })),
+    });
+    let gateway = client(&base_url, "admin-key");
+    assert_eq!(
+        gateway.daemons().await.unwrap().daemons[0].daemon_id,
+        "debian"
+    );
+    let stored = gateway.stored_catalogue(A).await.unwrap();
+    assert_eq!(stored.content, "x = 1\r\n");
+    assert_eq!(stored.provenance.path.as_deref(), Some("cats/site.toml"));
+    assert_eq!(
+        lines(&log),
+        [
+            "GET /v1/admin/daemons".to_string(),
+            format!("GET /v1/admin/catalogs/{A}")
+        ]
+    );
+    assert_eq!(
+        log.lock().unwrap()[0].header("authorization"),
+        Some("Bearer admin-key")
+    );
+}
+
+#[tokio::test]
+async fn an_assignment_puts_the_body_and_is_done_with_its_warnings() {
+    let (base_url, log) = gateway(|_| {
+        ok(json!({
+            "daemon_id": "debian", "interface": "/dev/ttyUSB0",
+            "assignment": { "blob_sha": A, "name": "Site", "assigned_at_us": 1, "assigned_by": null, "provenance": {} },
+            "warnings": [{ "field": "meta.name", "message": "missing" }],
+        }))
+    });
+    let outcome = client(&base_url, "").assign_catalogue(&assign()).await;
+    assert_eq!(
+        outcome.unwrap(),
+        AssignOutcome::Done {
+            warnings: vec![finding()]
+        }
+    );
+    let log = log.lock().unwrap();
+    assert_eq!(log[0].line(), "PUT /v1/admin/assignments");
+    assert_eq!(log[0].json(), serde_json::to_value(assign()).unwrap());
+}
+
+#[tokio::test]
+async fn an_empty_success_is_done_without_warnings() {
+    let (base_url, _) = gateway(|_| (204, String::new()));
+    let gateway = client(&base_url, "");
+    let done = AssignOutcome::Done { warnings: vec![] };
+    assert_eq!(gateway.assign_catalogue(&assign()).await.unwrap(), done);
+    assert_eq!(
+        gateway.unassign_catalogue(&unassign(None)).await.unwrap(),
+        done
+    );
+}
+
+#[tokio::test]
+async fn a_rejected_catalogue_carries_its_findings() {
+    let (base_url, _) = gateway(|_| {
+        (
+            400,
+            json!({ "error": "meta.name: missing", "findings": [{ "field": "meta.name", "message": "missing" }] })
+                .to_string(),
+        )
+    });
+    let outcome = client(&base_url, "").assign_catalogue(&assign()).await;
+    assert_eq!(
+        outcome.unwrap(),
+        AssignOutcome::Rejected(CatalogRejected {
+            error: "meta.name: missing".into(),
+            findings: vec![finding()],
+        })
+    );
+}
+
+#[tokio::test]
+async fn an_unassignment_names_its_guard_only_when_set_and_reports_a_conflict() {
+    let (base_url, log) = gateway(|seen| match seen.path.contains("expected") {
+        true => (
+            409,
+            json!({ "error": "the assignment changed since it was read", "current": B })
+                .to_string(),
+        ),
+        false => (204, String::new()),
+    });
+    let gateway = client(&base_url, "");
+    assert_eq!(
+        gateway
+            .unassign_catalogue(&unassign(Some(A)))
+            .await
+            .unwrap(),
+        AssignOutcome::Conflict(AssignmentConflict {
+            error: "the assignment changed since it was read".into(),
+            current: Some(B.into()),
+        })
+    );
+    gateway.unassign_catalogue(&unassign(None)).await.unwrap();
+    assert_eq!(
+        lines(&log),
+        [
+            format!("DELETE /v1/admin/assignments?daemon_id=debian&interface=%2Fdev%2FttyUSB0&expected={A}"),
+            "DELETE /v1/admin/assignments?daemon_id=debian&interface=%2Fdev%2FttyUSB0".to_string(),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn an_unassignment_of_nothing_on_an_older_gateway_is_done() {
+    let (base_url, _) = gateway(|_| {
+        (
+            404,
+            json!({ "error": "nothing is assigned there" }).to_string(),
+        )
+    });
+    let outcome = client(&base_url, "")
+        .unassign_catalogue(&unassign(None))
+        .await;
+    assert_eq!(outcome.unwrap(), AssignOutcome::Done { warnings: vec![] });
+}
+
+#[tokio::test]
+async fn any_other_admin_answer_is_the_gateways_error() {
+    let (base_url, _) = gateway(|_| (500, json!({ "error": "database unavailable" }).to_string()));
+    let gateway = client(&base_url, "");
+    let refused = ClientError::Status {
+        code: 500,
+        error: Some("database unavailable".into()),
+    };
+    assert_eq!(
+        gateway.assign_catalogue(&assign()).await.unwrap_err(),
+        refused
+    );
+    assert_eq!(
+        gateway
+            .unassign_catalogue(&unassign(None))
+            .await
+            .unwrap_err(),
+        refused
+    );
+    assert_eq!(gateway.daemons().await.unwrap_err(), refused);
 }

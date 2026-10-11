@@ -289,7 +289,7 @@ pub(crate) fn query_string(pairs: &[(&str, Option<String>)]) -> String {
     }
 }
 
-fn percent_encode(s: &str) -> String {
+pub(crate) fn percent_encode(s: &str) -> String {
     s.bytes()
         .map(|b| match b {
             b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {

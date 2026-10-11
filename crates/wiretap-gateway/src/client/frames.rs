@@ -76,9 +76,14 @@ impl FrameCursor {
         }
     }
 
+    /// True once the gateway has no more pages or the [`at_most`](Self::at_most) total is reached.
+    pub fn is_done(&self) -> bool {
+        self.exhausted || self.remaining == Some(0)
+    }
+
     /// The next page, empty once the cursor is spent.
     pub async fn next_page(&mut self) -> Result<Vec<ArchiveFrame>, ClientError> {
-        if self.exhausted || self.remaining == Some(0) {
+        if self.is_done() {
             return Ok(Vec::new());
         }
         let FrameBatch {

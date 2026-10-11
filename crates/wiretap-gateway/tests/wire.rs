@@ -206,6 +206,20 @@ fn server_responses_parse() {
 }
 
 #[test]
+fn an_older_gateways_health_and_database_list_parse() {
+    let bare: Health = parse(json!({}));
+    assert_eq!(
+        (bare.status, bare.version, bare.db_ok, bare.schema),
+        (String::new(), String::new(), false, String::new())
+    );
+    assert_eq!(parse::<Health>(json!({ "status": "ok" })).status, "ok");
+    let list: DatabaseList = parse(json!({ "databases": [{ "name": "site", "size_bytes": 1 }] }));
+    assert_eq!(list.schema_version, 0);
+    assert_eq!(list.databases[0].schema_state, "");
+    assert_eq!(list.databases[0].schema_version, None);
+}
+
+#[test]
 fn event_id_is_followed_by_a_field() {
     let wire = serde_json::to_string(&parse::<Event>(event())).unwrap();
     assert!(wire.contains(r#""id":17,"#), "{wire}");

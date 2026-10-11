@@ -13,15 +13,15 @@ use wiretap_catalog::model::{Protocol, RegisterType, SerialConfig};
 use wiretap_decode::frame_id::format_frame_id;
 use wiretap_decode::Endianness;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ExportMeta {
     pub name: String,
     /// Written as at least 1.
     pub version: i64,
     pub default_byte_order: Endianness,
-    /// Written as at least 0.
-    pub default_interval: i64,
+    /// Milliseconds, written rounded and at least 0.
+    pub default_interval: f64,
 }
 
 /// What the export could not write; the rest of it is written.
@@ -173,7 +173,7 @@ pub fn head_ops(
         Protocol::Can => ops.push(EditOp::SetCanConfig {
             config: CanConfigFields {
                 default_byte_order: Some(meta.default_byte_order),
-                default_interval: Some(meta.default_interval.max(0) as u64),
+                default_interval: Some(super::whole_ms(meta.default_interval)),
                 ..Default::default()
             },
         }),
@@ -274,7 +274,7 @@ mod tests {
     use super::*;
     use wiretap_catalog::model::ChecksumConfig;
 
-    fn meta(version: i64, default_interval: i64) -> ExportMeta {
+    fn meta(version: i64, default_interval: f64) -> ExportMeta {
         ExportMeta {
             name: "Bench".into(),
             version,
@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn meta_keeps_version_at_least_one_and_interval_at_least_zero() {
-        let (ops, findings) = head_ops(Protocol::Can, &meta(0, -5), &SerialConfig::default());
+        let (ops, findings) = head_ops(Protocol::Can, &meta(0, -5.0), &SerialConfig::default());
         assert!(findings.is_empty());
         let EditOp::SetMeta { meta: written } = &ops[0] else {
             panic!("{:?}", ops[0]);
@@ -326,11 +326,24 @@ mod tests {
             }
         );
         assert_eq!(
-            head_ops(Protocol::Modbus, &meta(3, 10), &SerialConfig::default())
+            head_ops(Protocol::Modbus, &meta(3, 10.0), &SerialConfig::default())
                 .0
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn the_interval_is_written_as_whole_milliseconds() {
+        let written =
+            |ms: f64| match &head_ops(Protocol::Can, &meta(1, ms), &SerialConfig::default()).0[1] {
+                EditOp::SetCanConfig { config } => config.default_interval,
+                other => panic!("{other:?}"),
+            };
+        assert_eq!(written(99.5), Some(100));
+        assert_eq!(written(99.4), Some(99));
+        assert_eq!(written(-0.6), Some(0));
+        assert_eq!(written(f64::NAN), Some(0));
     }
 
     #[test]
@@ -356,7 +369,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let (ops, findings) = head_ops(Protocol::Serial, &meta(2, 0), &config);
+        let (ops, findings) = head_ops(Protocol::Serial, &meta(2, 0.0), &config);
         assert!(findings.is_empty());
         let written = serial_config(&ops);
         assert_eq!(written.encoding.as_deref(), Some("slip"));
@@ -393,7 +406,7 @@ mod tests {
             source_address_bytes: Some(2),
             ..Default::default()
         };
-        let (ops, findings) = head_ops(Protocol::Serial, &meta(1, 0), &config);
+        let (ops, findings) = head_ops(Protocol::Serial, &meta(1, 0.0), &config);
         assert_eq!(
             findings,
             [ExportFinding::HeaderFieldOutOfRange {
@@ -423,7 +436,7 @@ mod tests {
             },
             frame(0x10, Some("can")),
         ];
-        let (ops, findings) = frames_ops(&frames, &meta(1, 100), false).unwrap();
+        let (ops, findings) = frames_ops(&frames, &meta(1, 100.0), false).unwrap();
         assert!(findings.is_empty());
         let keys: Vec<_> = ops[2..]
             .iter()
@@ -454,7 +467,7 @@ mod tests {
 
     #[test]
     fn a_protocol_without_a_catalogue_is_an_error() {
-        let err = frames_ops(&[frame(1, Some("lin"))], &meta(1, 0), false).unwrap_err();
+        let err = frames_ops(&[frame(1, Some("lin"))], &meta(1, 0.0), false).unwrap_err();
         assert_eq!(err, ExportError::UnsupportedProtocol("lin".into()));
         assert_eq!(err.to_string(), "lin frames cannot be saved as a catalogue");
     }
@@ -482,7 +495,7 @@ mod tests {
             default_interval: 500,
         };
         let frames = |register_type| -> Vec<(String, u32)> {
-            modbus_ops(&registers, &meta(0, 0), &config(register_type))[2..]
+            modbus_ops(&registers, &meta(0, 0.0), &config(register_type))[2..]
                 .iter()
                 .map(|op| match op {
                     EditOp::SetFrame {
@@ -510,7 +523,7 @@ mod tests {
             frames(RegisterType::Coil),
             [("3".into(), 1), ("10".into(), 1), ("40".into(), 1)]
         );
-        let ops = modbus_ops(&registers, &meta(0, 0), &config(RegisterType::Input));
+        let ops = modbus_ops(&registers, &meta(0, 0.0), &config(RegisterType::Input));
         let EditOp::SetModbusConfig { config: written } = &ops[1] else {
             panic!("{:?}", ops[1]);
         };

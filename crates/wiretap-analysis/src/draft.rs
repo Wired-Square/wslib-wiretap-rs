@@ -189,6 +189,11 @@ pub fn default_signals(
     signals
 }
 
+/// Negative and NaN as 0.
+fn whole_ms(ms: f64) -> u64 {
+    ms.round() as u64
+}
+
 /// The interval of the group with the most ids, the shortest on a tie.
 pub fn default_interval<'a>(groups: impl IntoIterator<Item = &'a IntervalGroup>) -> Option<f64> {
     groups
@@ -494,11 +499,10 @@ impl Draft {
             frame.protocol.as_str().into(),
             key.clone(),
         ];
-        let round = |ms: f64| ms.round() as u64;
         let interval_ms = frame
             .interval_ms
-            .map(round)
-            .filter(|ms| Some(*ms) != self.default_interval_ms.map(round));
+            .map(whole_ms)
+            .filter(|ms| Some(*ms) != self.default_interval_ms.map(whole_ms));
         let length = match frame.protocol {
             Protocol::Modbus => frame.length.div_ceil(2).max(1),
             _ => frame.length,

@@ -3,7 +3,7 @@
 The WireTAP gateway's HTTP API as serde types — the part of the
 [`wslib-wiretap-rs`](../../) workspace that WireTAP-Server emits and the WireTAP
 desktop parses. It depends on `serde` alone: no HTTP client, no database, no
-async runtime.
+async runtime, unless the off-by-default `client` feature asks for one.
 
 The off-by-default `ts` feature derives `ts_rs::TS` on `QuerySpec`, `RowWindow`,
 `Protocol` (as `ArchiveProtocol`) and the query results, for an app to export;
@@ -33,6 +33,7 @@ nothing here writes a `.ts` file.
   client reading one protocol, and `rfc3339`, a µs bound as the gateway takes it
 - **`admin`** — the daemons and their devices, catalogue assignment and the
   stored catalogues; see [The admin API](#the-admin-api)
+- **`client`** — under the `client` feature; see [The client](#the-client)
 
 Field names, types and order are the wire contract. No type refuses an unknown
 field, so a newer gateway can add one; fields a pre-0.1.4 gateway leaves out
@@ -65,6 +66,25 @@ so `warnings` is empty until the server produces one.
 
 `DaemonDevice.active` is the device's latest ingest `CATALOG_STATUS`, `null`
 before one; `bus` is `null` for an interface assigned but never seen.
+
+## The client
+
+`client` is an HTTP client for the gateway on `reqwest` 0.12, off by default.
+`GatewayClient` holds a base URL and a key, sent as a bearer token unless empty;
+its clones, and those from `with_endpoint`, share one connection pool and one
+registry of running queries, which `cancel` reaches by query id whichever
+gateway runs it. `db(name, protocol)` reads one database as one protocol:
+inventory, payloads, time bounds, events, import, activity, the queries and a
+`FrameCursor` over `/frames`. A failure is a `ClientError`, whose text is the
+gateway's own `error` when it sent one.
+
+It runs on the caller's tokio runtime and brings no TLS. For `https://`, enable a
+TLS backend on `reqwest` in your own manifest, and Cargo unifies it in:
+
+```toml
+wiretap-gateway = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.6.0", features = ["client"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }  # or "native-tls"
+```
 
 ## Using it
 

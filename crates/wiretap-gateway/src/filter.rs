@@ -1,7 +1,7 @@
 //! Which frames a query reads, and that choice as the SQLite `WHERE` clause over
 //! the desktop's capture `frames` table.
 //!
-//! The clause is built by hand, so this crate stays on serde alone; the statement
+//! The clause is built by hand, so this crate needs no SQL library; the statement
 //! around it, and running it, are the desktop's.
 
 use std::fmt;

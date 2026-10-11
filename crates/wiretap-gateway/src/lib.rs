@@ -20,10 +20,13 @@
 //! - [`spec`] — a query as one [`QuerySpec`], µs-bounded, before it becomes params.
 //! - [`request`] — a [`QuerySpec`] as the gateway request that answers it.
 //! - [`admin`] — the daemons, their catalogue assignments and the stored catalogues.
+//! - `client` — an HTTP client for all of it, behind the off-by-default `client` feature.
 
 pub mod activity;
 pub mod admin;
 pub mod archive;
+#[cfg(feature = "client")]
+pub mod client;
 pub mod events;
 pub mod filter;
 pub mod params;

@@ -28,7 +28,9 @@ nothing here writes a `.ts` file.
   bounds in µs, durations in ms, `limit` counting results. Its `row_filters` are
   what it reads, a `Protocol` matching each `CaptureProtocol` a capture stores it
   as (CAN with CAN FD, Modbus with Modbus RTU); turning it into the params above
-  is the client's
+  is `request`'s
+- **`request`** — `QuerySpec::request`, a spec as the gateway's path and body for a
+  client reading one protocol, and `rfc3339`, a µs bound as the gateway takes it
 - **`admin`** — the daemons and their devices, catalogue assignment and the
   stored catalogues; see [The admin API](#the-admin-api)
 

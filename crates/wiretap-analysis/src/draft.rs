@@ -3,7 +3,7 @@
 //! and the typed catalogue ops that write it. Notes stay codes; the caller words
 //! them when it writes the ops. Also the `byte_*` signals offered for a frame
 //! with no catalogue, which read byte roles and so live here, not beside
-//! [`wiretap_decode::PayloadField`].
+//! [`wiretap_decode::PayloadField`], and Discovery's catalogue export.
 
 use std::collections::BTreeMap;
 use std::ops::Range;
@@ -19,6 +19,12 @@ use crate::notes::ByteNote;
 use crate::order::{BurstFlag, BusOrder, IntervalGroup, OrderAnalysis};
 use crate::roles::{self, ByteColumn, ByteProfile, ByteRole, MultiBytePattern, MuxSelector};
 use crate::scan::FrameKey;
+
+mod export;
+pub use export::{
+    catalog_protocol, frames_ops, head_ops, modbus_ops, ExportError, ExportFinding, ExportFrame,
+    ExportMeta, ModbusExportConfig, ModbusRegister,
+};
 
 /// Bytes a frame's header, checksum or mux selector takes; a negative `start`
 /// counts from the end.
@@ -181,6 +187,11 @@ pub fn default_signals(
         start += run.len();
     }
     signals
+}
+
+/// Negative and NaN as 0.
+fn whole_ms(ms: f64) -> u64 {
+    ms.round() as u64
 }
 
 /// The interval of the group with the most ids, the shortest on a tie.
@@ -488,11 +499,10 @@ impl Draft {
             frame.protocol.as_str().into(),
             key.clone(),
         ];
-        let round = |ms: f64| ms.round() as u64;
         let interval_ms = frame
             .interval_ms
-            .map(round)
-            .filter(|ms| Some(*ms) != self.default_interval_ms.map(round));
+            .map(whole_ms)
+            .filter(|ms| Some(*ms) != self.default_interval_ms.map(whole_ms));
         let length = match frame.protocol {
             Protocol::Modbus => frame.length.div_ceil(2).max(1),
             _ => frame.length,

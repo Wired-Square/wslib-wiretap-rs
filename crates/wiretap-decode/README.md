@@ -10,6 +10,9 @@ the catalogue model.
   the word-swap rule lives, and the one that knows a coil block is read
   least-significant-bit-first and never swapped (`BitOrder`)
 - **`extract_bits`** — a bitfield as `f64`, honouring endianness and sign
+- **`groups::decode_groups`, `groups::parse_sizes`** — the Frame Calculator: a
+  payload cut into 1, 2, 4 or 8-byte words or a repeating list of bit widths,
+  each read at any width as unsigned, two's, ones' and sign-magnitude
 - **`apply_word_swap`** — 16-bit "CDAB" word order
 - **`scale`** — `raw × factor + offset` as an exact `Decimal`, so `3374 × 0.1`
   is `337.4` and not `337.40000000000003`; `None` when an input is non-finite
@@ -20,6 +23,8 @@ the catalogue model.
   two in either order, counted from either end (`FrameIdField`, `FrameIdWidth`)
 - **`frame_id::format_frame_id`** — a frame id for display, `0x07B` standard
   and `0x0000007B` extended
+- **`frame_id::matched_id_count`, `frame_id::matched_range`** — the ids a CAN
+  filter's mask accepts
 - **`PayloadField`, `ScaledField`** — a bit field cut from a payload without a
   catalogue, read through `extract_bits`, and the same field through `scale`;
   `ScaledField`'s JSON is the desktop's `HypothesisParams`
@@ -29,6 +34,14 @@ the catalogue model.
 - **`hex::parse_bytes`, `hex::parse_bytes_lenient`** — a typed hex byte string
   (`01 04`, `0x01,0x04`, `0104`): strict fails with a `HexError` naming the bad
   token, lenient drops it
+- **`register::interpret_register`, `register::interpret_pair`** — a Modbus
+  register as hex, u16, s16 and text; two as u32, s32 and f32 in either word
+  order
+
+The off-by-default `ts` feature derives `ts_rs::TS` on `Endianness`, `Group`
+(as `GroupedValue`), `GroupMode`, `GroupOrder`, `RegisterView`,
+`RegisterPairView` and `MatchedRange`, for an app to export; nothing here
+writes a `.ts` file.
 
 ## Using it
 

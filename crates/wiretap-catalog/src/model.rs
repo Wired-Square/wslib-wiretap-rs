@@ -43,6 +43,7 @@ impl Protocol {
 
 /// Modbus register class — determines the function code the poller uses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum RegisterType {
     Input,

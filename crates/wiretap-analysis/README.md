@@ -51,6 +51,12 @@ checksum on most frame ids.
   that write it, with hex signals over every byte nothing else claims
   (`default_signals`). `draft::candidate_signals` lists the `byte_*` fields
   worth charting over a byte range
+- **`draft::head_ops`, `frames_ops`, `modbus_ops`** — Discovery's catalogue
+  export: the meta and protocol config a catalogue opens with, a frame per id
+  seen, and a Modbus frame per register found. A header field a mask cannot
+  reach is not written; it comes back as an `ExportFinding`. The `ts` feature
+  derives `ts_rs::TS` on `ExportMeta`, `ExportFinding`, `ExportFrame`,
+  `ModbusExportConfig` and `ModbusRegister`
 - **`query`** — the analytical query kernels over rows already read, oldest
   first, answering in `wiretap-gateway`'s result types: byte and frame changes,
   mirror validation (`mirror_compare_set` for a catalogue's inherited bytes), mux

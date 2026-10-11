@@ -10,6 +10,10 @@ readme = "README.md"
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 rust_decimal = "1"
+ts-rs = { version = "12", optional = true }
+
+[features]
+ts = ["dep:ts-rs"]
 
 [dev-dependencies]
 rust_decimal_macros = "1"

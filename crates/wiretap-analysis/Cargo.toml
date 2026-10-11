@@ -17,7 +17,12 @@ serde = { version = "1", features = ["derive"] }
 ts-rs = { version = "12", optional = true }
 
 [features]
-ts = ["dep:ts-rs", "wiretap-gateway/ts"]
+ts = [
+    "dep:ts-rs",
+    "wiretap-catalog/ts",
+    "wiretap-decode/ts",
+    "wiretap-gateway/ts",
+]
 testing = []
 
 [dev-dependencies]

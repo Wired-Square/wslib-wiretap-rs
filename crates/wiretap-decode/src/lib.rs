@@ -14,12 +14,15 @@
 //! [`frame_id`] reads a serial message's frame id out of its bytes and formats
 //! one for display, [`hex`] reads a typed hex byte string, [`field`] is a
 //! bit field cut from a payload without a catalogue, and [`byte_name()`] the
-//! name such a field is saved under.
+//! name such a field is saved under. [`groups`] is the Frame Calculator and
+//! [`register`] a Modbus register's readings.
 
 mod byte_name;
 pub mod field;
 pub mod frame_id;
+pub mod groups;
 pub mod hex;
+pub mod register;
 
 pub use byte_name::{byte_name, parse_byte_name};
 pub use field::{PayloadField, ScaledField};
@@ -31,6 +34,7 @@ use serde::{Deserialize, Serialize};
 /// Byte / word ordering. `Big` is the standard convention (high-order first);
 /// `Little` is byte/word-swapped (e.g. Sungrow's word-swapped "CDAB").
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum Endianness {
     Big,
@@ -52,40 +56,17 @@ pub fn extract_bits(
     if bit_length == 0 {
         return 0.0;
     }
-    let mut bits: Vec<u8> = Vec::with_capacity(bytes.len() * 8);
-    match endian {
-        Endianness::Big => {
-            for &b in bytes {
-                for k in (0..8).rev() {
-                    bits.push((b >> k) & 1);
-                }
-            }
-        }
-        Endianness::Little => {
-            for &b in bytes {
-                for k in 0..8 {
-                    bits.push((b >> k) & 1);
-                }
-            }
-        }
+    let mut bits: Vec<bool> = bit_walk(bytes, endian)
+        .skip(start_bit as usize)
+        .take(bit_length as usize)
+        .map(|(_, bit)| bit)
+        .collect();
+    if endian == Endianness::Little {
+        bits.reverse();
     }
-    let start = (start_bit as usize).min(bits.len());
-    let end = (start + bit_length as usize).min(bits.len());
-    let slice = &bits[start..end];
-
-    let mut value: i128 = 0;
-    match endian {
-        Endianness::Big => {
-            for &bit in slice {
-                value = (value << 1) | bit as i128;
-            }
-        }
-        Endianness::Little => {
-            for &bit in slice.iter().rev() {
-                value = (value << 1) | bit as i128;
-            }
-        }
-    }
+    let mut value = bits
+        .into_iter()
+        .fold(0i128, |value, bit| (value << 1) | bit as i128);
     if signed {
         let sign_bit: i128 = 1 << (bit_length - 1);
         if value & sign_bit != 0 {
@@ -93,6 +74,22 @@ pub fn extract_bits(
         }
     }
     value as f64
+}
+
+/// Each bit of `bytes` in the order [`extract_bits`] reads them, with its
+/// position (`byte * 8 + bit`, bit 0 least significant): big walks each byte
+/// from bit 7 down, little from bit 0 up.
+pub(crate) fn bit_walk(
+    bytes: &[u8],
+    endian: Endianness,
+) -> impl Iterator<Item = (usize, bool)> + '_ {
+    (0..bytes.len() * 8).map(move |i| {
+        let position = match endian {
+            Endianness::Big => i / 8 * 8 + 7 - i % 8,
+            Endianness::Little => i,
+        };
+        (position, bytes[position / 8] >> (position % 8) & 1 == 1)
+    })
 }
 
 /// Swap 16-bit words within a signal's byte span (low-word-first →
@@ -259,6 +256,15 @@ pub fn decode_text(bytes: &[u8], start_bit: u32, bit_length: u32) -> String {
     out
 }
 
+/// A byte as its character, or `.` outside printable ASCII.
+pub(crate) fn printable(byte: u8) -> char {
+    if (0x20..=0x7e).contains(&byte) {
+        byte as char
+    } else {
+        '.'
+    }
+}
+
 /// Format a unix timestamp as `YYYY-MM-DD HH:MM:SS` (UTC). The TS version uses
 /// the browser's local timezone; we use UTC for determinism (the frontend may
 /// re-localise). Seconds vs milliseconds is auto-detected as in the TS.
@@ -315,6 +321,22 @@ mod tests {
         assert_eq!(
             extract_bits(&[0x34, 0x12], 0, 16, Endianness::Little, false),
             0x1234 as f64
+        );
+    }
+
+    #[test]
+    fn an_unaligned_field_reads_across_the_byte_boundary() {
+        assert_eq!(
+            extract_bits(&[0xE8, 0x08], 3, 8, Endianness::Big, false),
+            0x40 as f64
+        );
+        assert_eq!(
+            extract_bits(&[0xE8, 0x08], 3, 8, Endianness::Little, false),
+            0x1D as f64
+        );
+        assert_eq!(
+            extract_bits(&[0xE8], 6, 8, Endianness::Little, false),
+            0x3 as f64
         );
     }
 

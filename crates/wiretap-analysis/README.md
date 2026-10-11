@@ -86,7 +86,7 @@ test.
 ## Using it
 
 ```toml
-wiretap-analysis = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.5.0" }
+wiretap-analysis = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.6.0" }
 ```
 
 Nothing in this workspace depends on it; its consumers are outside.

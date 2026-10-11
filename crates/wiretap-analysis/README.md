@@ -58,6 +58,18 @@ checksum on most frame ids.
   search. Every kernel stops at `limit` results, never rows.
   `first_last_from_ends` answers from the end rows and a count, and `stats`
   stamps a caller's own result
+- **`source`** — the levers over a store of recorded frames, so a panel and an
+  MCP tool reading one capture answer alike. A `PayloadSource` lists its frames
+  as `InventoryRow`s and samples one frame's payloads (`Sampling::Recent` for
+  roles, `Spread` for checksums); `byte_profile(s)`, `checksum_scan` (sixteen
+  ids resident at a time) and `catalog_coverage` run over it, the last keyed by
+  the catalogue's `frame_id_mask` and reporting each signal's confidence as
+  `low`, `medium`, `high` or `unset`. A `FrameSource` gives a `FrameSelection`'s
+  timed frames for `message_order`. The methods return `impl Future + Send` with
+  the source's own `Error`, and nothing here needs a runtime. The
+  off-by-default `testing` feature brings `MemorySource`, frames held in
+  memory for a consumer's tests. The `ts` feature derives `ts_rs::TS` on
+  `InventoryRow` and `OrderStart`
 
 Per-byte-column statistics live in [`wiretap-checksum`](../wiretap-checksum),
 beside the addressing they are indexed by; reach for them there directly. Roles

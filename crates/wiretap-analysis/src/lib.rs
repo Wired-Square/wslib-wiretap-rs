@@ -21,6 +21,9 @@
 //! - [`draft`] — profiles and message order merged per protocol and frame, and
 //!   the typed [`wiretap_catalog`] ops that write them; the `byte_*` signals
 //!   offered for a frame without a catalogue. Reached by path.
+//! - [`source`] — the levers over a store of recorded frames: byte profiles, a
+//!   checksum scan and catalogue coverage over a [`source::PayloadSource`], and
+//!   message order over a [`source::FrameSource`]. Reached by path.
 //! - [`query`] — the analytical query kernels over rows already read, answering in
 //!   [`wiretap_gateway`]'s result types. Reached by path.
 //!
@@ -49,6 +52,7 @@ pub mod order;
 pub mod query;
 pub mod roles;
 pub mod scan;
+pub mod source;
 pub mod structure;
 pub mod summary;
 

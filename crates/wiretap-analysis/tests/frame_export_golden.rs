@@ -48,6 +48,12 @@ const ONE_BYTE: &[(&str, &[(&str, u32)])] = &[
     ("id start without bytes", &[("id", 0xFF00)]),
 ];
 
+/// R17 D4 again: the spans those configs reserve, the 1-byte field included.
+const ONE_BYTE_SPANS: &[(&str, &[(i32, u32)])] = &[
+    ("negative id start is no field", &[(-2, 2), (1, 1)]),
+    ("id start without bytes", &[(1, 1)]),
+];
+
 fn cases() -> Vec<Value> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/desktop/frame_export_golden.json");
@@ -165,9 +171,20 @@ fn check_modbus(name: &str, input: &Value, expected: &Value) {
     assert_eq!(ops_text(&ops), golden_ops(expected), "{name}");
 }
 
+fn spans_override(name: &str) -> Option<Value> {
+    let config = name.strip_prefix("serialReservedSpans ")?;
+    let (_, spans) = ONE_BYTE_SPANS.iter().find(|(c, _)| *c == config)?;
+    let spans: Vec<Value> = spans
+        .iter()
+        .map(|&(start, len)| json!({ "start": start, "len": len }))
+        .collect();
+    Some(Value::Array(spans))
+}
+
 fn check_spans(name: &str, input: &Value, expected: &Value) {
     let got = serde_json::to_value(ByteSpan::serial(&serial_config(input))).unwrap();
-    assert_eq!(got, *expected, "{name}");
+    let expected = spans_override(name).unwrap_or_else(|| expected.clone());
+    assert_eq!(got, expected, "{name}");
 }
 
 #[test]
@@ -175,6 +192,7 @@ fn every_case_matches_the_golden_but_the_listed_overrides() {
     let cases = cases();
     assert_eq!(cases.len(), 65);
     let mut overridden = 0;
+    let mut spans_overridden = 0;
     for case in &cases {
         let name = case["name"].as_str().unwrap();
         let (input, expected) = (&case["input"], &case["expected"]);
@@ -185,7 +203,10 @@ fn every_case_matches_the_golden_but_the_listed_overrides() {
             }
             "framesCatalogOps" => check_frames(name, input, expected),
             "modbusCatalogOps" => check_modbus(name, input, expected),
-            "serialReservedSpans" => check_spans(name, input, expected),
+            "serialReservedSpans" => {
+                spans_overridden += usize::from(spans_override(name).is_some());
+                check_spans(name, input, expected);
+            }
             other => panic!("{name}: no function {other}"),
         }
     }
@@ -195,4 +216,5 @@ fn every_case_matches_the_golden_but_the_listed_overrides() {
         .chain(ONE_BYTE.iter().map(|(c, _)| c))
         .collect();
     assert_eq!(overridden, 2 * configs.len());
+    assert_eq!(spans_overridden, ONE_BYTE_SPANS.len());
 }

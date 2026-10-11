@@ -47,7 +47,7 @@ impl ByteSpan {
         let field = |start: Option<i32>, len: Option<u32>| {
             Some(Self {
                 start: start?,
-                len: len?,
+                len: len.unwrap_or(1),
             })
         };
         [

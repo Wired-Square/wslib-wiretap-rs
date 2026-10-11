@@ -9,6 +9,7 @@ an app compiles only the ones it uses.
 | Feature | Brings |
 | --- | --- |
 | `net` | `net::resolve(host, port, timeout)`: every address a name or an IP literal resolves to, never empty on `Ok`, and a `ResolveError` saying whether the lookup failed, found nothing or timed out. Implied by `modbus-tcp` and `can-gvret`, which connect through it |
+| `replay` | `replay::Pacer`: recorded frames played against the wall clock at a `PlaybackControl`'s speed, held while due under a millisecond and sent fifty at a time, a gap waited out for at most ten seconds, and a frame handed back when a pause came during its wait. `PlaybackControl` is the pause, speed, reverse and cancel flags shared with whoever drives the playback; a frame is anything `Timestamped`, and its frames go to a `Playout` |
 | `modbus-tcp` | `modbus::ModbusTcp`: one connection to a `host:port`, reads of every bank (FC01–04) and device identification (FC43/14), whose `vendor`, `product_code` and `revision` read as text. And `modbus::Poller`, whose `step` reads whatever is due over a connection it is lent, decoding catalogue frames into a snapshot |
 | `modbus-write` | its write methods: `write_registers` (FC06/16), `write_coils` (FC05/15) and `write_verified`, the batch write-verify of catalogue `ModbusWrite`s: a holding run read-modify-written and read back by FC03, a coil run written whole and read back by FC01. Implies `modbus-tcp` |
 | `modbus-task` | `modbus::spawn`: one task per connection that owns it and a `Poller`, emits each step as a batch of events, and reconnects with backoff. With `modbus-write` as well, a `PollWriter` sends writes over that task's connection. Implies `modbus-tcp` |
@@ -24,7 +25,7 @@ an app compiles only the ones it uses.
 | `can-pcan` | `can::pcan::open`: a PEAK-System adapter over USB on macOS and Windows, one channel per task: the classic PCAN-USB, and the CAN FD PCAN-USB FD, PCAN-Chip USB, PCAN-USB Pro FD and PCAN-USB X6. **The four FD models are untested**: no device of theirs has met this code. On Windows, an adapter bound to PEAK's own driver goes through `PCANBasic.dll` instead, classic CAN on channel 0 only. It claims the adapter and starts the channel at once, so a missing adapter is the caller's error. And `devices`, the adapters plugged in, and `probe`, which reads one without starting it. Implies `can` |
 | `can-socketcan` | `can::socketcan::open`: a SocketCAN interface on Linux, classic and FD, stamped by the kernel. It opens the socket at once, so a missing interface is the caller's error. And `bitrates`, the interface's configured rates. Implies `can` |
 
-There are **no default features**. `net`, Modbus, `can` and `can-gvret` build only for Windows,
+There are **no default features**. `net`, `replay`, Modbus, `can` and `can-gvret` build only for Windows,
 macOS, Linux and iOS, serial, `can-gvret-serial` and `can-slcan` only for Windows, macOS and Linux,
 `can-gsusb` only for Windows and macOS, bar its Linux `devices`, `can-pcan` only for Windows and
 macOS, and `can-socketcan` only for Linux; elsewhere, such as Android, their features compile to nothing. On Linux the kernel's `gs_usb`

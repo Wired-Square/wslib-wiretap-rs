@@ -9,6 +9,7 @@ readme = "README.md"
 
 [features]
 net = ["dep:tokio", "dep:thiserror"]
+replay = ["dep:tokio", "tokio/rt", "tokio/time", "dep:thiserror"]
 modbus-tcp = ["net", "dep:tokio-modbus", "dep:wiretap-catalog"]
 modbus-write = ["modbus-tcp"]
 modbus-task = ["modbus-tcp", "tokio/rt", "tokio/sync", "tokio/macros"]
@@ -53,8 +54,8 @@ libc = { version = "0.2", optional = true }
 
 [dev-dependencies]
 # So the workspace's `cargo test --all`, which names no features, tests every path.
-wiretap-io = { path = ".", features = ["modbus-task", "modbus-write", "testing", "serial-write", "can-gvret-serial", "can-slcan", "can-gsusb", "can-pcan", "can-socketcan"] }
-tokio = { version = "1", features = ["macros", "rt", "net", "io-util", "time"] }
+wiretap-io = { path = ".", features = ["replay", "modbus-task", "modbus-write", "testing", "serial-write", "can-gvret-serial", "can-slcan", "can-gsusb", "can-pcan", "can-socketcan"] }
+tokio = { version = "1", features = ["macros", "rt", "net", "io-util", "time", "test-util"] }
 
 [target.'cfg(unix)'.dev-dependencies]
 nix = { version = "0.29", features = ["term", "fs"] }

@@ -1,6 +1,8 @@
 //! Reading a frame id (or source address) out of a framed serial message, and
 //! writing one for display.
 
+use serde::{Deserialize, Serialize};
+
 use crate::Endianness;
 
 /// Where a frame id (or source address) sits in a framed message.
@@ -45,6 +47,32 @@ pub fn extract_frame_id(frame: &[u8], field: &FrameIdField) -> Option<u32> {
 pub fn format_frame_id(id: u32, extended: bool) -> String {
     let width = if extended { 8 } else { 3 };
     format!("0x{id:0width$X}")
+}
+
+/// The ids a CAN filter accepts, `id & mask` with the bits `mask` leaves free.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MatchedRange {
+    pub lo: u32,
+    pub hi: u32,
+}
+
+fn width_mask(width: u32) -> u32 {
+    1u32.checked_shl(width).map_or(u32::MAX, |bit| bit - 1)
+}
+
+/// How many `width`-bit ids `mask` accepts: two to the power of the bits it
+/// leaves free, saturating at `u64::MAX`.
+pub fn matched_id_count(mask: u32, width: u32) -> u64 {
+    let free = width - (mask & width_mask(width)).count_ones();
+    1u64.checked_shl(free).unwrap_or(u64::MAX)
+}
+
+pub fn matched_range(id: u32, mask: u32, width: u32) -> MatchedRange {
+    let lo = id & mask & width_mask(width);
+    MatchedRange {
+        lo,
+        hi: lo | (!mask & width_mask(width)),
+    }
 }
 
 #[cfg(test)]
@@ -104,5 +132,71 @@ mod tests {
         assert_eq!(format_frame_id(0x7B, true), "0x0000007B");
         assert_eq!(format_frame_id(0x18FF50E5, true), "0x18FF50E5");
         assert_eq!(format_frame_id(0x1234, false), "0x1234");
+    }
+
+    #[test]
+    fn a_mask_counts_the_ids_its_free_bits_allow() {
+        assert_eq!(matched_id_count(0x7FF, 11), 1);
+        assert_eq!(matched_id_count(0x7F0, 11), 16);
+        assert_eq!(matched_id_count(0, 11), 2048);
+        assert_eq!(matched_id_count(0xFFFF_F800, 11), 2048);
+        assert_eq!(matched_id_count(0x1FFF_FF00, 29), 256);
+        assert_eq!(matched_id_count(0, 29), 1 << 29);
+        assert_eq!(matched_id_count(0, 0), 1);
+    }
+
+    #[test]
+    fn a_width_of_32_or_more_takes_every_mask_bit() {
+        assert_eq!(matched_id_count(0, 32), 1 << 32);
+        assert_eq!(matched_id_count(u32::MAX, 32), 1);
+        assert_eq!(matched_id_count(0xFFFF_0000, 40), 1 << 24);
+        assert_eq!(matched_id_count(0, 64), u64::MAX);
+        assert_eq!(
+            matched_range(0x1234_5678, 0xFFFF_0000, 32),
+            MatchedRange {
+                lo: 0x1234_0000,
+                hi: 0x1234_FFFF
+            }
+        );
+        assert_eq!(
+            matched_range(0x1234_5678, 0xFFFF_0000, 40),
+            MatchedRange {
+                lo: 0x1234_0000,
+                hi: 0x1234_FFFF
+            }
+        );
+    }
+
+    #[test]
+    fn a_range_runs_from_the_masked_id_with_its_free_bits_set() {
+        assert_eq!(
+            matched_range(0x123, 0x7F0, 11),
+            MatchedRange {
+                lo: 0x120,
+                hi: 0x12F
+            }
+        );
+        assert_eq!(
+            matched_range(0x123, 0x7FF, 11),
+            MatchedRange {
+                lo: 0x123,
+                hi: 0x123
+            }
+        );
+        assert_eq!(
+            matched_range(0xFFF, 0, 11),
+            MatchedRange { lo: 0, hi: 0x7FF }
+        );
+        assert_eq!(
+            matched_range(0x18FF_50E5, 0x1FFF_FF00, 29),
+            MatchedRange {
+                lo: 0x18FF_5000,
+                hi: 0x18FF_50FF
+            }
+        );
+        assert_eq!(
+            matched_range(0x123, 0x7F0, 0),
+            MatchedRange { lo: 0, hi: 0 }
+        );
     }
 }

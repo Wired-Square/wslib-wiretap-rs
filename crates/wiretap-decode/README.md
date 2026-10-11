@@ -23,6 +23,8 @@ the catalogue model.
   two in either order, counted from either end (`FrameIdField`, `FrameIdWidth`)
 - **`frame_id::format_frame_id`** — a frame id for display, `0x07B` standard
   and `0x0000007B` extended
+- **`frame_id::matched_id_count`, `frame_id::matched_range`** — the ids a CAN
+  filter's mask accepts
 - **`PayloadField`, `ScaledField`** — a bit field cut from a payload without a
   catalogue, read through `extract_bits`, and the same field through `scale`;
   `ScaledField`'s JSON is the desktop's `HypothesisParams`

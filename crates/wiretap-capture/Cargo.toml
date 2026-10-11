@@ -1,0 +1,24 @@
+[package]
+name = "wiretap-capture"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The WireTAP desktop's SQLite capture store: the schema and its recorded migrations, frame and byte inserts, the paged, filtered and tail reads, search, sampling, metadata and events, and a capture as an analysis source."
+readme = "README.md"
+
+[dependencies]
+rusqlite = { version = "0.40", features = ["bundled", "hooks"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+ts-rs = { version = "12", optional = true }
+wiretap-analysis = { path = "../wiretap-analysis" }
+wiretap-gateway = { path = "../wiretap-gateway" }
+wiretap-protocol = { path = "../wiretap-protocol" }
+
+[features]
+ts = ["dep:ts-rs"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }

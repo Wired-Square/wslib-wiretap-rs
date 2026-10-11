@@ -185,16 +185,21 @@ pub fn head_ops(
 }
 
 /// A catalogue declaring each frame's id and length, keyed by
-/// [`format_frame_id`].
+/// [`format_frame_id`], or by the bare decimal id under `decimal_ids`.
 pub fn frames_ops(
     frames: &[ExportFrame],
     meta: &ExportMeta,
+    decimal_ids: bool,
 ) -> Result<(Vec<EditOp>, Vec<ExportFinding>), ExportError> {
     let protocol = catalog_protocol(frames)?;
     let (mut ops, findings) = head_ops(protocol, meta, &SerialConfig::default());
     ops.extend(frames.iter().map(|f| EditOp::SetFrame {
         protocol,
-        key: format_frame_id(f.id, f.is_extended),
+        key: if decimal_ids {
+            f.id.to_string()
+        } else {
+            format_frame_id(f.id, f.is_extended)
+        },
         rename_from: None,
         frame: FrameFields {
             length: Some(f.len),
@@ -413,7 +418,7 @@ mod tests {
             },
             frame(0x10, Some("can")),
         ];
-        let (ops, findings) = frames_ops(&frames, &meta(1, 100)).unwrap();
+        let (ops, findings) = frames_ops(&frames, &meta(1, 100), false).unwrap();
         assert!(findings.is_empty());
         let keys: Vec<_> = ops[2..]
             .iter()
@@ -444,7 +449,7 @@ mod tests {
 
     #[test]
     fn a_protocol_without_a_catalogue_is_an_error() {
-        let err = frames_ops(&[frame(1, Some("lin"))], &meta(1, 0)).unwrap_err();
+        let err = frames_ops(&[frame(1, Some("lin"))], &meta(1, 0), false).unwrap_err();
         assert_eq!(err, ExportError::UnsupportedProtocol("lin".into()));
         assert_eq!(err.to_string(), "lin frames cannot be saved as a catalogue");
     }

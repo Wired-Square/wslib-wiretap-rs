@@ -25,6 +25,8 @@
 //! - [`summary`] — a catalogue's counts and resolved per-frame rows, across
 //!   protocols, for a consumer's report.
 //! - [`dbc`] — Vector DBC ↔ catalogue TOML import/export.
+//! - [`text`] — a catalogue's source as text: the editor's line diff,
+//!   `[meta].name` from a file that may not parse, and the filename rules.
 //!
 //! The Modbus parser/decoder was originally extracted from the Home Assistant
 //! ESS add-on (MIT, © Wired Square) so WireTAP and the add-on share one
@@ -44,6 +46,7 @@ pub mod model;
 pub mod mux_case;
 pub mod parse;
 pub mod summary;
+pub mod text;
 pub mod validate;
 
 pub use layout::{frame_layout, FrameLayout, LayoutRange, RangeKind};
@@ -65,3 +68,4 @@ pub use model::{EffectiveDefaults, NAME_KEYED_FRAME_ID};
 pub use mux_case::{compare_mux_case_keys, is_mux_case_key, mux_case_values, CaseRange};
 pub use parse::{rtu_rules, CatalogError, RtuRules, RtuRulesError};
 pub use summary::CatalogSummary;
+pub use text::{DiffKind, DiffRow, UnsafeFilename};

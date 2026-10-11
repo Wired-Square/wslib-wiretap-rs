@@ -89,6 +89,15 @@ decoding happens once in Rust rather than per consumer.
   comment-preserving and idempotent
 - **`mirror`** — `MirrorTracker` / `MirrorVerdict`, live validation that a
   mirrored frame still matches the frame it copies
+- **`text`** — a catalogue's source as text, without parsing it: `diff_lines`,
+  the editor's full-context line diff as `DiffRow`s with 1-based line numbers
+  (serde in camel case; past 25M cells of LCS table it falls back to remove-all,
+  add-all); `meta_name`, `[meta].name` from a file that may not validate; and
+  the filename rules, `reject_unsafe_filename`, `sanitise_filename`,
+  `suggested_filename` and `next_free_filename`, refusing with `UnsafeFilename`
+
+The off-by-default `ts` feature derives `ts_rs::TS` on `DiffKind`, `DiffRow`
+(as `DiffLine`), for an app to export; nothing here writes a `.ts` file.
 
 ## Using it
 

@@ -628,6 +628,7 @@ fn push_mux_own<'a>(mux: &'a Mux, out: &mut Vec<&'a Signal>) {
 /// A header field defined by a bitmask over the frame's header bytes (CAN ID
 /// bits, or serial header bytes).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct HeaderField {
     pub mask: u32,
@@ -644,6 +645,7 @@ pub struct HeaderField {
 /// time (so consumers don't re-derive it). One entry per `[meta.serial.fields]`
 /// field.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct HeaderFieldPosition {
     pub name: String,
@@ -675,6 +677,7 @@ pub struct CanConfig {
 
 /// `[meta.serial.checksum]`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ChecksumConfig {
     pub algorithm: String,
@@ -696,6 +699,7 @@ fn one() -> u32 {
 
 /// `[meta.serial]` defaults.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct SerialConfig {
     /// `slip` | `cobs` | `raw` | `length_prefixed`.

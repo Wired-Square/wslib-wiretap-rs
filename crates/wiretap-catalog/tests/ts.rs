@@ -3,7 +3,9 @@
 //! `Config` (`large_int` as `number`), doc comments aside.
 
 use ts_rs::{Config, TS};
-use wiretap_catalog::model::RegisterType;
+use wiretap_catalog::model::{
+    ChecksumConfig, HeaderField, HeaderFieldPosition, RegisterType, SerialConfig,
+};
 use wiretap_catalog::{DiffKind, DiffRow, RtuSettings};
 
 fn decl<T: TS>() -> String {
@@ -64,5 +66,36 @@ allow_broadcast?: boolean,
  * resyncs — see `ModbusRtuStream::frame_any_function`.
  */
 any_function?: boolean, };"#
+    );
+}
+
+/// Served camelCase; a field serde skips when empty is optional.
+#[test]
+fn a_serial_config_keeps_its_served_camel_case_shape() {
+    assert_eq!(
+        decl::<SerialConfig>(),
+        "type SerialConfig = { encoding?: string | null, byteOrder?: Endianness | null, \
+         frameIdMask?: number | null, headerLength?: number | null, \
+         minFrameLength?: number | null, checksum?: ChecksumConfig | null, \
+         fields?: { [key in string]: HeaderField }, frameIdStartByte?: number | null, \
+         frameIdBytes?: number | null, frameIdByteOrder?: Endianness | null, \
+         sourceAddressStartByte?: number | null, sourceAddressBytes?: number | null, \
+         sourceAddressByteOrder?: Endianness | null, \
+         headerFields?: Array<HeaderFieldPosition>, };"
+    );
+    assert_eq!(
+        decl::<ChecksumConfig>(),
+        "type ChecksumConfig = { algorithm: string, startByte: number, byteLength: number, \
+         calcStartByte: number, calcEndByte?: number | null, bigEndian: boolean, };"
+    );
+    assert_eq!(
+        decl::<HeaderField>(),
+        "type HeaderField = { mask: number, shift?: number | null, format?: string | null, \
+         endianness?: Endianness | null, };"
+    );
+    assert_eq!(
+        decl::<HeaderFieldPosition>(),
+        "type HeaderFieldPosition = { name: string, mask: number, byteOrder: Endianness, \
+         format: string, startByte: number, bytes: number, };"
     );
 }

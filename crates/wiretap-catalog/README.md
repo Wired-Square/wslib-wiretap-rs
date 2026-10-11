@@ -116,7 +116,7 @@ nothing here writes a `.ts` file.
 ## Using it
 
 ```toml
-wiretap-catalog = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.8.0" }
+wiretap-catalog = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.9.0" }
 ```
 
 ```rust

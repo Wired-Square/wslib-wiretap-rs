@@ -43,6 +43,12 @@ pub struct MissingField {
     pub key: String,
 }
 
+impl From<MissingField> for String {
+    fn from(e: MissingField) -> Self {
+        e.to_string()
+    }
+}
+
 /// Each `conn_*` read takes a numeric field in either spelling, the form's
 /// string or a number, and falls back to the kind's default, as does a value
 /// of the wrong shape. `req_*` makes absent a [`MissingField`].

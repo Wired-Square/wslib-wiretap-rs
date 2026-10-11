@@ -72,6 +72,12 @@ pub enum SerialSourceError {
     Framing(#[from] DegenerateFraming),
 }
 
+impl From<SerialSourceError> for String {
+    fn from(e: SerialSourceError) -> Self {
+        e.to_string()
+    }
+}
+
 impl IOProfile {
     /// The profile's line, an absent field read as 8N1's.
     pub fn line_settings(&self) -> Result<LineSettings, LineSettingsError> {

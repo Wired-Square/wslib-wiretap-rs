@@ -141,6 +141,15 @@ fn a_value_reads_through_its_accessors() {
     assert!(ConnValue::Null.is_null());
 }
 
+#[test]
+fn a_value_gets_a_key_only_from_a_map() {
+    let map: ConnValue = serde_json::from_str(r#"{"bus":1}"#).unwrap();
+    assert_eq!(map.get("bus"), Some(&ConnValue::Int(1)));
+    assert_eq!(map.get("absent"), None);
+    assert_eq!(ConnValue::Str("bus".into()).get("bus"), None);
+    assert_eq!(ConnValue::Null.get("bus"), None);
+}
+
 /// A kind whose reader takes a default must declare it, aliases included.
 #[test]
 fn every_kind_a_reader_handles_has_a_spec() {
@@ -254,6 +263,17 @@ fn an_undeclared_field_reports_missing() {
     assert_eq!(
         p.req_i64("bitrate").unwrap_err().to_string(),
         "socketcan profile is missing 'bitrate'"
+    );
+}
+
+#[test]
+fn a_missing_field_converts_to_a_string_through_question_mark() {
+    fn bitrate(p: &IOProfile) -> Result<i64, String> {
+        Ok(p.req_i64("bitrate")?)
+    }
+    assert_eq!(
+        bitrate(&profile("socketcan")),
+        Err("socketcan profile is missing 'bitrate'".to_string())
     );
 }
 
@@ -538,6 +558,17 @@ fn a_serial_source_without_a_port_or_with_a_bad_line_is_refused() {
     assert_eq!(
         err.to_string(),
         "parity must be none, even or odd, got \"mark\""
+    );
+}
+
+#[test]
+fn a_serial_source_error_converts_to_a_string_through_question_mark() {
+    fn port(p: &IOProfile) -> Result<String, String> {
+        Ok(SerialSourceConfig::from_profile(p, &SerialOverrides::default())?.port)
+    }
+    assert_eq!(
+        port(&profile("serial")),
+        Err("Serial port is required".to_string())
     );
 }
 

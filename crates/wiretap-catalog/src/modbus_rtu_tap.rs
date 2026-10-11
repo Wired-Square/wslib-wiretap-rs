@@ -78,6 +78,12 @@ pub enum LineSettingsError {
     Line(#[from] InvalidLineSettings),
 }
 
+impl From<LineSettingsError> for String {
+    fn from(e: LineSettingsError) -> Self {
+        e.to_string()
+    }
+}
+
 /// A serial line's rate and character framing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LineSettings {
@@ -395,6 +401,14 @@ pub(crate) mod tests {
             mark.to_string(),
             "parity must be none, even or odd, got \"mark\""
         );
+    }
+
+    #[test]
+    fn a_line_settings_error_converts_to_a_string_through_question_mark() {
+        fn parse() -> Result<LineSettings, String> {
+            Ok(LineSettings::parse(9600, Some(9), None, None)?)
+        }
+        assert_eq!(parse(), Err("data_bits must be 5 to 8, got 9".to_string()));
     }
 
     #[test]

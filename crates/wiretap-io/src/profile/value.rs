@@ -78,6 +78,11 @@ impl ConnValue {
             _ => None,
         }
     }
+
+    /// `None` unless this is a map.
+    pub fn get(&self, key: &str) -> Option<&ConnValue> {
+        self.as_map()?.get(key)
+    }
 }
 
 impl From<bool> for ConnValue {

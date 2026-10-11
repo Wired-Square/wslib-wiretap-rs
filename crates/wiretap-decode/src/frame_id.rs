@@ -51,6 +51,7 @@ pub fn format_frame_id(id: u32, extended: bool) -> String {
 
 /// The ids a CAN filter accepts, `id & mask` with the bits `mask` leaves free.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct MatchedRange {
     pub lo: u32,
     pub hi: u32,

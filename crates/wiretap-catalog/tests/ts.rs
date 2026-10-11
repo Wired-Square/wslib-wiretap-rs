@@ -3,6 +3,7 @@
 //! `Config` (`large_int` as `number`), doc comments aside.
 
 use ts_rs::{Config, TS};
+use wiretap_catalog::model::RegisterType;
 use wiretap_catalog::{DiffKind, DiffRow, RtuSettings};
 
 fn decl<T: TS>() -> String {
@@ -21,6 +22,14 @@ fn a_diff_row_is_the_editors_diff_line() {
     assert_eq!(
         decl::<DiffRow>(),
         "type DiffLine = { kind: DiffKind, text: string, oldLine: number | null, newLine: number | null, };"
+    );
+}
+
+#[test]
+fn a_register_type_is_its_lower_case_name() {
+    assert_eq!(
+        decl::<RegisterType>(),
+        r#"type RegisterType = "input" | "holding" | "coil" | "discrete";"#
     );
 }
 

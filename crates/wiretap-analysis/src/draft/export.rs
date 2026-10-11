@@ -14,6 +14,7 @@ use wiretap_decode::frame_id::format_frame_id;
 use wiretap_decode::Endianness;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ExportMeta {
     pub name: String,
     /// Written as at least 1.
@@ -25,6 +26,7 @@ pub struct ExportMeta {
 
 /// What the export could not write; the rest of it is written.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(
     tag = "code",
     rename_all = "camelCase",
@@ -56,6 +58,7 @@ impl fmt::Display for ExportError {
 impl std::error::Error for ExportError {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ExportFrame {
     pub id: u32,
@@ -210,6 +213,7 @@ pub fn frames_ops(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ModbusExportConfig {
     pub device_address: u8,
     pub register_base: u8,
@@ -218,6 +222,7 @@ pub struct ModbusExportConfig {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ModbusRegister {
     pub frame_id: u16,

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::{printable, Endianness};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct RegisterView {
     /// Upper case, unseparated: `0938`.
     pub hex: String,
@@ -16,6 +17,7 @@ pub struct RegisterView {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct RegisterPairView {
     pub u32: u32,
     pub s32: i32,

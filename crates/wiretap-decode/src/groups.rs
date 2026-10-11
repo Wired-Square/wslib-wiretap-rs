@@ -10,6 +10,7 @@ use crate::{bit_walk, printable, Endianness};
 /// How a group's bytes are ordered. Mid-big and mid-little swap the bytes of
 /// each 16-bit word, then read as big and little.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum GroupOrder {
     Big,
@@ -19,6 +20,7 @@ pub enum GroupOrder {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub enum GroupMode {
     #[serde(rename = "1B")]
     OneByte,
@@ -36,6 +38,7 @@ pub enum GroupMode {
 /// One group, in the desktop's `GroupedValue` shape. The readings are decimal
 /// strings; bit positions count `byte * 8 + bit`, bit 0 least significant.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(rename = "GroupedValue"))]
 #[serde(rename_all = "camelCase")]
 pub struct Group {
     /// From 1.

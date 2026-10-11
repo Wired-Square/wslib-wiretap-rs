@@ -34,6 +34,7 @@ use serde::{Deserialize, Serialize};
 /// Byte / word ordering. `Big` is the standard convention (high-order first);
 /// `Little` is byte/word-swapped (e.g. Sungrow's word-swapped "CDAB").
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum Endianness {
     Big,

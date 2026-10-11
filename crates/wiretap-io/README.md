@@ -24,11 +24,13 @@ an app compiles only the ones it uses.
 | `can-gsusb` | `can::gsusb::open`: a gs_usb adapter over USB on macOS and Windows, such as a CANable or a candleLight, one channel per task, with CAN FD where the device has it. It claims the adapter and starts the channel at once, so a missing adapter is the caller's error. And `devices`, the adapters plugged in, and `probe`, which reads one without starting it. Implies `can` |
 | `can-pcan` | `can::pcan::open`: a PEAK-System adapter over USB on macOS and Windows, one channel per task: the classic PCAN-USB, and the CAN FD PCAN-USB FD, PCAN-Chip USB, PCAN-USB Pro FD and PCAN-USB X6. **The four FD models are untested**: no device of theirs has met this code. On Windows, an adapter bound to PEAK's own driver goes through `PCANBasic.dll` instead, classic CAN on channel 0 only. It claims the adapter and starts the channel at once, so a missing adapter is the caller's error. And `devices`, the adapters plugged in, and `probe`, which reads one without starting it. Implies `can` |
 | `can-socketcan` | `can::socketcan::open`: a SocketCAN interface on Linux, classic and FD, stamped by the kernel. It opens the socket at once, so a missing interface is the caller's error. And `bitrates`, the interface's configured rates. Implies `can` |
+| `profile` | `profile::IOProfile`: a device profile as the desktop's settings file stores it, its connection map of `ConnValue`s, any JSON value, written back as serde_json writes it. The per-kind table of defaults and required fields, `conn_*`/`req_*` reads that fall back to it, `apply_defaults`, `validate_profile` and its code-tagged rejection, and a serial source's settings from a profile under a session's `SerialOverrides`. Pure, so it builds on every target |
+| `ts` | TypeScript bindings for `profile`'s wire types, under the desktop's names |
 
 There are **no default features**. `net`, `replay`, Modbus, `can` and `can-gvret` build only for Windows,
 macOS, Linux and iOS, serial, `can-gvret-serial` and `can-slcan` only for Windows, macOS and Linux,
 `can-gsusb` only for Windows and macOS, bar its Linux `devices`, `can-pcan` only for Windows and
-macOS, and `can-socketcan` only for Linux; elsewhere, such as Android, their features compile to nothing. On Linux the kernel's `gs_usb`
+macOS, and `can-socketcan` only for Linux; elsewhere, such as Android, their features compile to nothing. `profile` builds everywhere. On Linux the kernel's `gs_usb`
 driver makes a gs_usb adapter a SocketCAN interface, and its `peak_usb` driver a PEAK one.
 
 The crate never builds a runtime, and never spawns without `modbus-task`, `testing`,

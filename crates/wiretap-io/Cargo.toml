@@ -25,12 +25,19 @@ can-slcan = ["can", "serial-write"]
 can-gsusb = ["can", "dep:nusb"]
 can-pcan = ["can", "dep:nusb", "dep:libloading"]
 can-socketcan = ["can", "dep:socketcan", "dep:libc"]
+profile = ["dep:serde", "dep:thiserror", "dep:wiretap-catalog", "dep:wiretap-decode"]
+ts = ["dep:ts-rs", "wiretap-catalog?/ts"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"], optional = true }
+thiserror = { version = "2", optional = true }
+ts-rs = { version = "12", optional = true }
+wiretap-catalog = { path = "../wiretap-catalog", optional = true }
+wiretap-decode = { path = "../wiretap-decode", optional = true }
 
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux", target_os = "ios"))'.dependencies]
 tokio = { version = "1", features = ["net", "time"], optional = true }
 tokio-modbus = { version = "0.17", default-features = false, features = ["tcp"], optional = true }
-thiserror = { version = "2", optional = true }
-wiretap-catalog = { path = "../wiretap-catalog", optional = true }
 wiretap-protocol = { path = "../wiretap-protocol", optional = true }
 
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
@@ -54,7 +61,8 @@ libc = { version = "0.2", optional = true }
 
 [dev-dependencies]
 # So the workspace's `cargo test --all`, which names no features, tests every path.
-wiretap-io = { path = ".", features = ["replay", "modbus-task", "modbus-write", "testing", "serial-write", "can-gvret-serial", "can-slcan", "can-gsusb", "can-pcan", "can-socketcan"] }
+wiretap-io = { path = ".", features = ["replay", "modbus-task", "modbus-write", "testing", "serial-write", "can-gvret-serial", "can-slcan", "can-gsusb", "can-pcan", "can-socketcan", "profile"] }
+serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt", "net", "io-util", "time", "test-util"] }
 
 [target.'cfg(unix)'.dev-dependencies]

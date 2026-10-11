@@ -43,6 +43,10 @@
 //!   classic only. Implies `can`.
 //! - `can-socketcan` — `can::socketcan::{open, bitrates}`: a SocketCAN
 //!   interface. Implies `can`.
+//! - `profile` — `profile::IOProfile`: a device profile as the desktop stores
+//!   it, read against the per-kind connection table, validated, and resolved
+//!   into a serial source's settings. Pure, so it builds on every target.
+//! - `ts` — TypeScript bindings for `profile`'s wire types.
 //!
 //! `net`, `replay`, Modbus, `can` and `can-gvret` build only for Windows, macOS, Linux and iOS,
 //! serial, `can-gvret-serial` and `can-slcan` only for Windows, macOS and
@@ -87,6 +91,9 @@ pub mod replay;
     any(target_os = "windows", target_os = "macos", target_os = "linux")
 ))]
 pub mod serial;
+
+#[cfg(feature = "profile")]
+pub mod profile;
 
 #[cfg(all(
     feature = "can",

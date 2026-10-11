@@ -21,6 +21,11 @@ mod captures;
 mod events;
 mod meta;
 
+mod inventory;
+mod query;
+mod sample;
+mod source;
+
 pub use rusqlite;
 pub use wiretap_protocol::can::Direction;
 
@@ -51,3 +56,8 @@ pub use meta::{
     delete_capture_metadata, get_distinct_buses, load_all_capture_metadata, save_capture_metadata,
     update_capture_name, update_capture_persistent,
 };
+
+pub use inventory::{frame_inventory, inventory_row, inventory_statement};
+pub use query::read_rows;
+pub use sample::{sample_frame_payloads, tail_frame_payloads};
+pub use source::CaptureSource;

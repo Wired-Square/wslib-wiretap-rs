@@ -2,7 +2,8 @@ use std::convert::Infallible;
 use std::sync::Mutex;
 
 use super::{
-    FrameSelection, FrameSource, InventoryRow, PayloadQuery, PayloadSource, Sampling, SourceFrame,
+    FrameSelection, FrameSource, InventoryRow, PayloadQuery, PayloadSource, Sampling, Source,
+    SourceFrame,
 };
 use crate::order::TimedFrame;
 use crate::scan::FrameKey;
@@ -48,9 +49,11 @@ impl MemorySource {
     }
 }
 
-impl PayloadSource for MemorySource {
+impl Source for MemorySource {
     type Error = Infallible;
+}
 
+impl PayloadSource for MemorySource {
     async fn inventory(
         &self,
         _: Option<i64>,
@@ -111,8 +114,6 @@ impl PayloadSource for MemorySource {
 }
 
 impl FrameSource for MemorySource {
-    type Error = Infallible;
-
     async fn frames(
         &self,
         selection: &FrameSelection,

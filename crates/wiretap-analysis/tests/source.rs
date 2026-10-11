@@ -8,7 +8,7 @@ use serde_json::json;
 use wiretap_analysis::source::{
     byte_profile, byte_profiles, catalog_coverage, checksum_scan, message_order, timed_by_protocol,
     FrameSelection, FrameSource, InventoryRow, MemorySource, OrderStart, PayloadQuery,
-    PayloadSource, ProtocolFrames, Sampling, ScanFilter,
+    PayloadSource, ProtocolFrames, Sampling, ScanFilter, Source,
 };
 use wiretap_analysis::{analyse_order, ByteRole, Direction, FrameKey};
 use wiretap_catalog::Catalog;
@@ -209,6 +209,21 @@ fn a_live_window_reads_only_the_newest_frames() {
     assert_eq!(orders[0].order.total_frames, 10);
 }
 
+async fn profiles_then_order<S: PayloadSource + FrameSource>(
+    source: &S,
+) -> Result<(usize, usize), S::Error> {
+    let profiles = byte_profiles(source, &ScanFilter::Ids(vec![]), 10, usize::MAX).await?;
+    let orders = message_order(source, &FrameSelection::default(), None, None).await?;
+    Ok((profiles.frames.len(), orders.len()))
+}
+
+#[test]
+fn a_source_read_both_ways_has_one_error() {
+    let counts = block_on(profiles_then_order(&mirrored_and_bursty())).unwrap();
+
+    assert_eq!(counts, (3, 1));
+}
+
 fn groups(entries: &[(&str, &[u32])]) -> Vec<ProtocolFrames> {
     entries
         .iter()
@@ -310,9 +325,11 @@ length = 1
 /// Inventory from memory, and payloads that never read.
 struct UnreadablePayloads(MemorySource);
 
-impl PayloadSource for UnreadablePayloads {
+impl Source for UnreadablePayloads {
     type Error = String;
+}
 
+impl PayloadSource for UnreadablePayloads {
     async fn inventory(
         &self,
         start_us: Option<i64>,

@@ -48,11 +48,14 @@ pub struct PayloadQuery<'a> {
     pub sampling: Sampling,
 }
 
+/// A store of recorded frames, owning the one error its reads return.
+pub trait Source: Sync {
+    type Error;
+}
+
 /// A store of recorded frames the analysis levers read: what frames it holds and
 /// a sample of each one's payloads. Time bounds are epoch µs.
-pub trait PayloadSource: Sync {
-    type Error;
-
+pub trait PayloadSource: Source {
     fn inventory(
         &self,
         start_us: Option<i64>,
@@ -75,9 +78,7 @@ pub struct SourceFrame {
 
 /// A store of recorded frames with their timing: a selection's frames, oldest
 /// first, the newest `newest` of them when given.
-pub trait FrameSource: Sync {
-    type Error;
-
+pub trait FrameSource: Source {
     fn frames(
         &self,
         selection: &FrameSelection,

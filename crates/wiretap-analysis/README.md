@@ -65,8 +65,9 @@ checksum on most frame ids.
   ids resident at a time) and `catalog_coverage` run over it, the last keyed by
   the catalogue's `frame_id_mask` and reporting each signal's confidence as
   `low`, `medium`, `high` or `unset`. A `FrameSource` gives a `FrameSelection`'s
-  timed frames for `message_order`. The methods return `impl Future + Send` with
-  the source's own `Error`, and nothing here needs a runtime. The
+  timed frames for `message_order`. Both build on `Source`, which owns the one
+  `Error`, so a store implementing both names `S::Error` once. The methods
+  return `impl Future + Send`, and nothing here needs a runtime. The
   off-by-default `testing` feature brings `MemorySource`, frames held in
   memory for a consumer's tests. The `ts` feature derives `ts_rs::TS` on
   `InventoryRow` and `OrderStart`

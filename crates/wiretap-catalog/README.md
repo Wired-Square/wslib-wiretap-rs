@@ -75,6 +75,15 @@ decoding happens once in Rust rather than per consumer.
   frame statistics and typed `Evidence`; the wording is the caller's. `Unframed`
   names the undeclared codes and broadcasts RTU skipped, and the declared codes
   whose length rules rejected every message
+- **`serial_framing::SerialFramer`** — a serial byte stream cut into
+  `SerialFrame`s by one `FramingEncoding`: SLIP and a delimiter from
+  `wiretap-protocol`, Modbus RTU from `RtuSettings` unioned with a catalogue's
+  codes. `flush` marks a trailing residue `incomplete`, and `abandoned_frames`
+  counts SLIP frames that outgrew the cap. `FramingMode` is the snake-case name
+  a UI picks, `FramingEncoding::from_mode` its defaults, `checked` refuses a
+  framing that would release every byte as its own frame, and `FrameIdConfig`
+  says where a frame's id sits. `LineSettings::parse` reads a line from its
+  stored fields, absent ones as 8N1's
 - **`modbus::decode_rtu_message`** — a recovered message as signals: its
   header as `Modbus_{Request|Response}_{Device,Function,Register,Quantity,Exception}`,
   and its register block through the catalogue's register frame, else as
@@ -100,7 +109,8 @@ decoding happens once in Rust rather than per consumer.
   `suggested_filename` and `next_free_filename`, refusing with `UnsafeFilename`
 
 The off-by-default `ts` feature derives `ts_rs::TS` on `DiffKind`, `DiffRow`
-(as `DiffLine`) and `RtuSettings` (as `ModbusRtuOptions`), for an app to export;
+(as `DiffLine`), `RtuSettings` (as `ModbusRtuOptions`), `FramingMode` and
+`FrameIdConfig`, for an app to export;
 nothing here writes a `.ts` file.
 
 ## Using it

@@ -22,6 +22,9 @@
 //!   by the read its last byte arrived in, on the caller's clock.
 //! - [`framing_detect`] — which framing a raw serial byte stream uses (SLIP,
 //!   Modbus RTU or a delimiter), and what RTU couldn't frame.
+//! - [`serial_framing`] — a serial byte stream cut into frames by SLIP, a
+//!   delimiter or Modbus RTU, behind one `SerialFramer`, and where a frame's id
+//!   sits in it.
 //! - [`summary`] — a catalogue's counts and resolved per-frame rows, across
 //!   protocols, for a consumer's report.
 //! - [`dbc`] — Vector DBC ↔ catalogue TOML import/export.
@@ -45,6 +48,7 @@ pub mod modbus_rtu_tap;
 pub mod model;
 pub mod mux_case;
 pub mod parse;
+pub mod serial_framing;
 pub mod summary;
 pub mod text;
 pub mod validate;
@@ -56,7 +60,8 @@ pub use modbus_rtu_stream::{
     ModbusRtuStream, Payload, RtuSettings, Selector, VendorLen, VendorLength,
 };
 pub use modbus_rtu_tap::{
-    InvalidLineSettings, LineSettings, Parity, RtuTap, TappedMessage, UnknownParity,
+    InvalidLineSettings, LineSettings, LineSettingsError, Parity, RtuTap, TappedMessage,
+    UnknownParity,
 };
 pub use model::{
     CanConfig, Catalog, ChecksumConfig, Confidence, DisplayHint, Endianness, Frame, FrameTunnel,
@@ -67,5 +72,8 @@ pub use model::{
 pub use model::{EffectiveDefaults, NAME_KEYED_FRAME_ID};
 pub use mux_case::{compare_mux_case_keys, is_mux_case_key, mux_case_values, CaseRange};
 pub use parse::{rtu_rules, CatalogError, RtuRules, RtuRulesError};
+pub use serial_framing::{
+    DegenerateFraming, FrameIdConfig, FramingEncoding, FramingMode, SerialFrame, SerialFramer,
+};
 pub use summary::CatalogSummary;
 pub use text::{DiffKind, DiffRow, UnsafeFilename};

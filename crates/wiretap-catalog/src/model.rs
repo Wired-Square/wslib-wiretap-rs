@@ -23,6 +23,7 @@ pub use wiretap_decode::Endianness;
 
 /// Which wire protocol a frame/catalogue uses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum Protocol {
     Can,
@@ -143,6 +144,7 @@ impl WriteBank {
 /// (string/opaque) — [`crate::decode`] renders it specially rather than as a
 /// plain scaled number. Absent = a plain scaled number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum SignalFormat {
     Ascii,
@@ -157,6 +159,7 @@ pub enum SignalFormat {
 /// Reverse-engineering confidence marker (carried through from the catalogue
 /// for the editor/discovery UI; not used by decode).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum Confidence {
     None,
@@ -181,6 +184,11 @@ impl Confidence {
 /// `{ widget = "level-bar", orientation = "vertical" }`. The widget names are the
 /// consumer's, and the options keep their keys as authored.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(type = "{ widget: string, [option: string]: unknown }")
+)]
 pub struct DisplayHint {
     pub widget: String,
     #[serde(flatten)]
@@ -218,6 +226,7 @@ impl DisplayHint {
 /// because mux-case and inherited signals may carry only overrides; a fully
 /// resolved signal for decode has `name`/`start_bit`/`bit_length` set.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Signal {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -249,6 +258,7 @@ pub struct Signal {
     /// Value↔label map (`enum` table in the catalogue). Keys are the numeric
     /// register/field value.
     #[serde(default, rename = "enum", skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(as = "Option<BTreeMap<String, String>>"))]
     pub enum_map: Option<BTreeMap<i64, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confidence: Option<Confidence>,
@@ -278,6 +288,7 @@ fn is_false(b: &bool) -> bool {
 /// One case of a multiplexer: the signals (and optional nested mux) active when
 /// the selector matches this case's key.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MuxCase {
     #[serde(default)]
@@ -293,6 +304,7 @@ pub struct MuxCase {
 /// are kept as strings to preserve the catalogue's range/list syntax
 /// (`"0"`, `"0-3"`, `"1,2,5"`); [`crate::decode`] matches them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Mux {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -313,6 +325,7 @@ pub struct Mux {
 
 /// The protocol carried inside a tunnel frame's payload.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum TunnelProtocol {
     /// Modbus RTU — a byte stream chopped across consecutive frames, with
@@ -328,6 +341,7 @@ pub enum TunnelProtocol {
 /// across frames, which [`crate::decode`] deliberately does not have. See
 /// [`crate::modbus_rtu_stream`] for the decoder.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct FrameTunnel {
@@ -353,6 +367,7 @@ pub struct FrameTunnel {
 /// Distinct from [`ChecksumConfig`] (the serial-level default); a frame may
 /// declare several.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct FrameChecksum {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -499,6 +514,7 @@ impl FrameChecksum {
 
 /// The parameters a solved checksum needs and a named one does not.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ChecksumParameters {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -519,6 +535,7 @@ pub struct ChecksumParameters {
 /// A resolved frame: one CAN message / serial frame / Modbus register read,
 /// with its signals, mux, and inheritance applied.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Frame {
     /// The authored catalogue table key (CAN: `"0x103"`; serial/modbus: the
@@ -687,6 +704,7 @@ pub struct HeaderFieldPosition {
 
 /// `[meta.can]` defaults.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CanConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -767,6 +785,7 @@ pub struct SerialConfig {
 
 /// `[meta.modbus]` defaults.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ModbusConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -783,11 +802,13 @@ pub struct ModbusConfig {
     /// `[meta.modbus.function_code.<code>]`: the vendor codes this catalogue's
     /// devices use, which every serial line and tunnel it describes inherits.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[cfg_attr(feature = "ts", ts(as = "BTreeMap<String, FunctionCode>"))]
     pub function_codes: BTreeMap<u8, FunctionCode>,
 }
 
 /// A vendor function code a catalogue declares.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct FunctionCode {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -801,6 +822,7 @@ pub struct FunctionCode {
 
 /// `[meta]` — catalogue identity.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Meta {
     pub name: String,
@@ -812,6 +834,7 @@ pub struct Meta {
 
 /// A network node/peer declared under `[node.<name>]`.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct NodeDef {
     pub name: String,
@@ -825,6 +848,7 @@ pub struct NodeDef {
 
 /// The defaults decode applies where the catalogue sets none.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct EffectiveDefaults {
     pub can_byte_order: Endianness,
@@ -879,6 +903,7 @@ impl Default for EffectiveDefaults {
 
 /// A fully parsed, resolved catalogue.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Catalog {
     pub meta: Meta,
@@ -903,6 +928,7 @@ pub struct Catalog {
 
 /// A single validation finding (field path + human message).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ValidationError {
     pub field: String,

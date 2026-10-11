@@ -917,6 +917,7 @@ impl VendorLength {
 /// A [`VendorLength`] without its function code, which a catalogue's
 /// `[meta.modbus.function_code.<code>]` table keys it by.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct LengthRule {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub when: Option<Selector>,
@@ -925,6 +926,7 @@ pub struct LengthRule {
 
 /// Selects the messages whose byte at `offset` is `value`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Selector {
     pub offset: u8,
     pub value: u8,
@@ -932,6 +934,11 @@ pub struct Selector {
 
 /// A message's total length, CRC included.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(
+    feature = "ts",
+    ts(type = "{ fixed: number } | { countAt: number, overhead: number }")
+)]
 #[serde(from = "VendorLenForm", into = "VendorLenForm")]
 pub enum VendorLen {
     Fixed(u16),

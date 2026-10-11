@@ -38,6 +38,7 @@ type JsonMap = Map<String, Json>;
 /// One comment-preserving edit. Deserialised straight from the WS `catalog.edit`
 /// params (internally tagged on `op`); the extra `content` param is ignored.
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(tag = "op")]
 pub enum EditOp {
     /// Create-or-update the table at `path`, setting every key in `value`.
@@ -48,15 +49,21 @@ pub enum EditOp {
     /// values under a key named `mask`/`frame_id_mask` render as hex literals.
     SetTable {
         path: Vec<String>,
+        #[cfg_attr(feature = "ts", ts(type = "{ [key in string]: unknown }"))]
         value: JsonMap,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         managed_keys: Vec<String>,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         replace_contents: bool,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         sort_parent_numeric: bool,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         skip_if_exists: bool,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         error_if_exists: bool,
     },
@@ -68,11 +75,18 @@ pub enum EditOp {
     UpsertFrame {
         protocol: String,
         key: String,
+        #[cfg_attr(feature = "ts", ts(type = "{ [key in string]: unknown }"))]
         value: JsonMap,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         managed_keys: Vec<String>,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         rename_from: Option<String>,
+        #[cfg_attr(
+            feature = "ts",
+            ts(optional = nullable, type = "Array<{ [key in string]: unknown }>")
+        )]
         #[serde(default)]
         initial_signals: Vec<JsonMap>,
     },
@@ -82,9 +96,12 @@ pub enum EditOp {
     /// not move. Works on inline `signals = [{…}]` arrays too.
     UpsertArrayItem {
         array_path: Vec<String>,
+        #[cfg_attr(feature = "ts", ts(type = "{ [key in string]: unknown }"))]
         value: JsonMap,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         index: Option<usize>,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         sort_keys: Vec<String>,
     },
@@ -93,6 +110,7 @@ pub enum EditOp {
     RemoveArrayItem {
         array_path: Vec<String>,
         index: usize,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         remove_if_empty: bool,
     },
@@ -104,20 +122,29 @@ pub enum EditOp {
         parent_path: Vec<String>,
         old: String,
         new: String,
+        #[cfg_attr(
+            feature = "ts",
+            ts(optional = nullable, type = "{ [key in string]: unknown } | null")
+        )]
         #[serde(default)]
         set_value: Option<JsonMap>,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         managed_keys: Vec<String>,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         sort_numeric: bool,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         update_transmitter_refs: bool,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         error_if_exists: bool,
     },
     /// Remove the key at `path` (no-op if absent).
     DeleteAtPath {
         path: Vec<String>,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         sort_parent_numeric: bool,
     },
@@ -125,6 +152,7 @@ pub enum EditOp {
     /// mux case at `owner_path`, in `start_bit` order.
     UpsertSignal {
         owner_path: Vec<String>,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         index: Option<usize>,
         signal: SignalFields,
@@ -133,6 +161,7 @@ pub enum EditOp {
     SetFrame {
         protocol: Protocol,
         key: String,
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
         #[serde(default)]
         rename_from: Option<String>,
         frame: FrameFields,

@@ -53,7 +53,7 @@ pub use layout::{frame_layout, FrameLayout, LayoutRange, RangeKind};
 pub use mirror::{MirrorTracker, MirrorVerdict};
 pub use modbus_rtu_stream::{
     CrcPolicy, Direction, DirectionBasis, LengthRule, ModbusRtuMessage, ModbusRtuOptions,
-    ModbusRtuStream, Payload, Selector, VendorLen, VendorLength,
+    ModbusRtuStream, Payload, RtuSettings, Selector, VendorLen, VendorLength,
 };
 pub use modbus_rtu_tap::{
     InvalidLineSettings, LineSettings, Parity, RtuTap, TappedMessage, UnknownParity,

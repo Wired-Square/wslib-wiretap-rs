@@ -59,7 +59,10 @@ decoding happens once in Rust rather than per consumer.
   guess, and `end_offset` — where it sat in the input, which
   against `bytes_fed()` is what back-dates the burst a sync releases at once.
   `ModbusRtuOptions` carries a line's settings as one value and builds the
-  stream; `ModbusRtuOptions::tapped()` is the tap's
+  stream; `ModbusRtuOptions::tapped()` is the tap's. `RtuSettings` is what a
+  user picks for a line, serde in snake case with every field defaulted;
+  `ModbusRtuOptions::from_settings(&settings, Some(&catalog))` unions it with
+  the catalogue's codes and rules
 - **`modbus_rtu_tap::RtuTap`** — that stream off a serial line, on the caller's
   clock: `push` takes one read's bytes and the time it returned, and each
   `TappedMessage` is stamped when its last byte arrived, back-dated by
@@ -97,7 +100,8 @@ decoding happens once in Rust rather than per consumer.
   `suggested_filename` and `next_free_filename`, refusing with `UnsafeFilename`
 
 The off-by-default `ts` feature derives `ts_rs::TS` on `DiffKind`, `DiffRow`
-(as `DiffLine`), for an app to export; nothing here writes a `.ts` file.
+(as `DiffLine`) and `RtuSettings` (as `ModbusRtuOptions`), for an app to export;
+nothing here writes a `.ts` file.
 
 ## Using it
 

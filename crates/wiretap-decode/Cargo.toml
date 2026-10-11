@@ -10,7 +10,7 @@ readme = "README.md"
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 rust_decimal = "1"
-ts-rs = { version = "12", optional = true }
+ts-rs = { version = "12", optional = true, features = ["no-serde-warnings"] }
 
 [features]
 ts = ["dep:ts-rs"]

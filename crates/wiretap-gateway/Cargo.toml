@@ -9,7 +9,7 @@ readme = "README.md"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-ts-rs = { version = "12", optional = true }
+ts-rs = { version = "12", optional = true, features = ["no-serde-warnings"] }
 reqwest = { version = "0.12", default-features = false, features = ["json"], optional = true }
 serde_json = { version = "1", optional = true }
 wiretap-decode = { path = "../wiretap-decode", optional = true }

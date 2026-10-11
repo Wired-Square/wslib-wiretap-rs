@@ -18,7 +18,7 @@ toml_edit = "0.22"
 thiserror = "2"
 can-dbc = "8"
 rust_decimal = { version = "1", features = ["serde"] }
-ts-rs = { version = "12", optional = true }
+ts-rs = { version = "12", optional = true, features = ["no-serde-warnings"] }
 
 [features]
 ts = ["dep:ts-rs", "wiretap-decode/ts"]

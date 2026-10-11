@@ -14,7 +14,7 @@ wiretap-decode = { path = "../wiretap-decode" }
 wiretap-gateway = { path = "../wiretap-gateway" }
 rayon = "1"
 serde = { version = "1", features = ["derive"] }
-ts-rs = { version = "12", optional = true }
+ts-rs = { version = "12", optional = true, features = ["no-serde-warnings"] }
 
 [features]
 ts = [

@@ -73,7 +73,8 @@ pub use model::{EffectiveDefaults, NAME_KEYED_FRAME_ID};
 pub use mux_case::{compare_mux_case_keys, is_mux_case_key, mux_case_values, CaseRange};
 pub use parse::{rtu_rules, CatalogError, RtuRules, RtuRulesError};
 pub use serial_framing::{
-    DegenerateFraming, FrameIdConfig, FramingEncoding, FramingMode, SerialFrame, SerialFramer,
+    degenerate_framing_field, DegenerateFraming, DelimiterOptions, FrameIdConfig, FramingEncoding,
+    FramingMode, SerialFrame, SerialFramer,
 };
 pub use summary::CatalogSummary;
 pub use text::{DiffKind, DiffRow, UnsafeFilename};

@@ -1066,7 +1066,7 @@ impl ModbusRtuOptions {
 }
 
 /// A line's RTU settings as a user picks and stores them, before a catalogue
-/// adds its codes; [`ModbusRtuOptions::from_settings`] joins the two.
+/// adds its codes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(rename = "ModbusRtuOptions"))]
 #[serde(default)]

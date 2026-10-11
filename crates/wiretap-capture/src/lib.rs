@@ -31,7 +31,7 @@ pub use wiretap_protocol::can::Direction;
 
 pub use error::CaptureError;
 pub use frames::{clear_and_refill, insert_frames, FrameRecord, StoredFrame, STORED_LENGTH};
-pub use schema::{migrate, tune, Applied};
+pub use schema::{migrate, tune, Applied, SCHEMA_VERSION};
 
 pub use read::{
     count_frames_before_rowid, find_offset_for_timestamp, find_rowid_for_timestamp, get_all_frames,

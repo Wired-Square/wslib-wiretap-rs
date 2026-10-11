@@ -64,6 +64,9 @@ struct Migration {
     step: MigrationStep,
 }
 
+/// The `user_version` [`migrate`] leaves a database at.
+pub const SCHEMA_VERSION: i64 = 5;
+
 /// Ascending and contiguous from 1; `user_version` 0 is any unstamped shape.
 const MIGRATIONS: &[Migration] = &[
     Migration {
@@ -282,10 +285,6 @@ mod tests {
         schema_version(conn).unwrap()
     }
 
-    fn current() -> i64 {
-        MIGRATIONS.last().unwrap().version
-    }
-
     fn count(conn: &Connection, sql: &str) -> i64 {
         conn.query_row(sql, [], |r| r.get(0)).unwrap()
     }
@@ -355,7 +354,7 @@ mod tests {
         let mut conn = migrated();
         assert!(migrate(&mut conn).unwrap().is_empty());
 
-        assert_eq!(version_of(&conn), current());
+        assert_eq!(version_of(&conn), SCHEMA_VERSION);
         assert_eq!(audit_rows(&conn).len(), MIGRATIONS.len());
     }
 
@@ -368,6 +367,7 @@ mod tests {
                 "MIGRATIONS must be contiguous from 1"
             );
         }
+        assert_eq!(MIGRATIONS.len() as i64, SCHEMA_VERSION);
     }
 
     #[test]
@@ -385,7 +385,7 @@ mod tests {
 
         migrate(&mut conn).unwrap();
 
-        assert_eq!(version_of(&conn), current());
+        assert_eq!(version_of(&conn), SCHEMA_VERSION);
         assert!(!has_column(&conn, "frames", "buffer_id").unwrap());
         let (name, n): (String, i64) = conn
             .query_row(
@@ -427,7 +427,7 @@ mod tests {
 
         migrate(&mut conn).unwrap();
 
-        assert_eq!(version_of(&conn), current());
+        assert_eq!(version_of(&conn), SCHEMA_VERSION);
         assert_eq!(
             count(
                 &conn,

@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use rusqlite::Connection;
@@ -17,14 +18,15 @@ use crate::sample::{sample_frame_payloads, tail_frame_payloads};
 /// Frames read a page at a time, so a whole capture is never one query.
 const FRAME_PAGE: usize = 50_000;
 
-/// One capture as the analysis levers read it. Each read holds the lock for its
+/// One capture as the analysis levers read it, over `&Mutex<Connection>` or an
+/// owned holder such as `Arc<Mutex<Connection>>`. Each read holds the lock for its
 /// whole run, on the calling thread: an async caller moves it off the runtime.
-pub struct CaptureSource<'a> {
-    pub conn: &'a Mutex<Connection>,
-    pub id: &'a str,
+pub struct CaptureSource<C> {
+    pub conn: C,
+    pub id: String,
 }
 
-impl CaptureSource<'_> {
+impl<C: Deref<Target = Mutex<Connection>>> CaptureSource<C> {
     /// A poisoned lock still guards a usable connection: SQLite rolled back whatever the panic interrupted.
     fn conn(&self) -> MutexGuard<'_, Connection> {
         self.conn.lock().unwrap_or_else(PoisonError::into_inner)
@@ -37,14 +39,14 @@ impl CaptureSource<'_> {
     ) -> Result<Vec<StoredFrame>> {
         let conn = self.conn();
         match newest {
-            Some(n) if selection.is_empty() => Ok(get_frames_tail_rows(&conn, self.id, n)?.0),
-            Some(n) => Ok(get_frames_tail_filtered(&conn, self.id, n, selection)?.0),
+            Some(n) if selection.is_empty() => Ok(get_frames_tail_rows(&conn, &self.id, n)?.0),
+            Some(n) => Ok(get_frames_tail_filtered(&conn, &self.id, n, selection)?.0),
             None => {
                 let mut frames = Vec::new();
                 loop {
                     let (page, _, total) = get_frames_paginated_filtered(
                         &conn,
-                        self.id,
+                        &self.id,
                         frames.len(),
                         FRAME_PAGE,
                         selection,
@@ -72,17 +74,17 @@ fn source_frame(f: StoredFrame) -> SourceFrame {
     }
 }
 
-impl Source for CaptureSource<'_> {
+impl<C: Deref<Target = Mutex<Connection>> + Sync> Source for CaptureSource<C> {
     type Error = CaptureError;
 }
 
-impl PayloadSource for CaptureSource<'_> {
+impl<C: Deref<Target = Mutex<Connection>> + Sync> PayloadSource for CaptureSource<C> {
     async fn inventory(
         &self,
         start_us: Option<i64>,
         end_us: Option<i64>,
     ) -> Result<Vec<InventoryRow>> {
-        frame_inventory(&self.conn(), self.id, start_us, end_us)
+        frame_inventory(&self.conn(), &self.id, start_us, end_us)
     }
 
     async fn payloads(&self, q: PayloadQuery<'_>) -> Result<Vec<Vec<u8>>> {
@@ -92,7 +94,7 @@ impl PayloadSource for CaptureSource<'_> {
         };
         read(
             &self.conn(),
-            self.id,
+            &self.id,
             q.protocol,
             q.frame_id,
             q.is_extended,
@@ -101,7 +103,7 @@ impl PayloadSource for CaptureSource<'_> {
     }
 }
 
-impl FrameSource for CaptureSource<'_> {
+impl<C: Deref<Target = Mutex<Connection>> + Sync> FrameSource for CaptureSource<C> {
     async fn frames(
         &self,
         selection: &FrameSelection,
@@ -120,8 +122,11 @@ mod tests {
     use super::*;
     use crate::read::{multi_protocol_capture, whole};
 
-    fn source_of(conn: &Mutex<Connection>) -> CaptureSource<'_> {
-        CaptureSource { conn, id: "c1" }
+    fn source_of(conn: &Mutex<Connection>) -> CaptureSource<&Mutex<Connection>> {
+        CaptureSource {
+            conn,
+            id: "c1".into(),
+        }
     }
 
     fn summary(frames: &[SourceFrame]) -> Vec<(&str, u32, u64)> {
@@ -135,6 +140,28 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    #[tokio::test]
+    async fn an_owned_source_reads_on_a_blocking_thread() {
+        let source = CaptureSource {
+            conn: std::sync::Arc::new(Mutex::new(multi_protocol_capture())),
+            id: "c1".to_string(),
+        };
+        let frames = tokio::task::spawn_blocking(move || {
+            let waker = std::task::Waker::noop();
+            let mut cx = std::task::Context::from_waker(waker);
+            use std::future::Future;
+            let can = whole("can");
+            let mut read = std::pin::pin!(source.frames(&can, None));
+            match read.as_mut().poll(&mut cx) {
+                std::task::Poll::Ready(frames) => frames.unwrap(),
+                std::task::Poll::Pending => unreachable!("a capture read never waits"),
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(summary(&frames), [("can", 256, 10), ("can", 257, 40)]);
     }
 
     #[tokio::test]

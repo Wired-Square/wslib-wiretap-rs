@@ -41,7 +41,7 @@ pub struct SignalFields {
     pub signed: Option<bool>,
     #[cfg_attr(
         feature = "ts",
-        ts(optional = nullable, type = "Endianness | \"\" | null")
+        ts(optional = nullable, as = "Option<OrBlank<Endianness>>")
     )]
     #[serde(alias = "endianness", deserialize_with = "blank_is_none")]
     pub byte_order: Option<Endianness>,
@@ -50,7 +50,7 @@ pub struct SignalFields {
     pub format: Option<String>,
     #[cfg_attr(
         feature = "ts",
-        ts(optional = nullable, type = "Confidence | \"\" | null")
+        ts(optional = nullable, as = "Option<OrBlank<Confidence>>")
     )]
     #[serde(deserialize_with = "blank_is_none")]
     pub confidence: Option<Confidence>,
@@ -274,6 +274,39 @@ fn blank_is_none<'de, D: Deserializer<'de>, T: DeserializeOwned>(
         Some(v) => serde_json::from_value(v)
             .map(Some)
             .map_err(D::Error::custom),
+    }
+}
+
+/// `T | ""` in TypeScript, for a field [`blank_is_none`] reads.
+#[cfg(feature = "ts")]
+struct OrBlank<T>(std::marker::PhantomData<T>);
+
+#[cfg(feature = "ts")]
+impl<T: ts_rs::TS> ts_rs::TS for OrBlank<T> {
+    type WithoutGenerics = Self;
+    type OptionInnerType = Self;
+
+    fn name(cfg: &ts_rs::Config) -> String {
+        format!("{} | \"\"", T::name(cfg))
+    }
+
+    fn inline(cfg: &ts_rs::Config) -> String {
+        format!("{} | \"\"", T::inline(cfg))
+    }
+
+    fn visit_dependencies(v: &mut impl ts_rs::TypeVisitor)
+    where
+        Self: 'static,
+    {
+        T::visit_dependencies(v);
+    }
+
+    fn visit_generics(v: &mut impl ts_rs::TypeVisitor)
+    where
+        Self: 'static,
+    {
+        T::visit_generics(v);
+        v.visit::<T>();
     }
 }
 

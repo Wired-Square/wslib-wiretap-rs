@@ -8,7 +8,8 @@ description = "Device I/O for WireTAP, one transport per feature: Modbus TCP rea
 readme = "README.md"
 
 [features]
-modbus-tcp = ["dep:tokio", "dep:tokio-modbus", "dep:thiserror", "dep:wiretap-catalog"]
+net = ["dep:tokio", "dep:thiserror"]
+modbus-tcp = ["net", "dep:tokio-modbus", "dep:wiretap-catalog"]
 modbus-write = ["modbus-tcp"]
 modbus-task = ["modbus-tcp", "tokio/rt", "tokio/sync", "tokio/macros"]
 testing = ["modbus-tcp", "tokio/rt", "tokio/sync", "tokio/macros", "tokio/io-util"]
@@ -17,7 +18,7 @@ serial-ports = ["serial", "serialport/any-os"]
 serial-write = ["serial-ports"]
 # What every `can-*` transport shares; alone it brings the types and no transport.
 can = ["dep:tokio", "tokio/rt", "tokio/sync", "tokio/macros", "dep:thiserror", "dep:wiretap-protocol"]
-can-gvret = ["can"]
+can-gvret = ["can", "net"]
 can-gvret-serial = ["can-gvret", "serial-write"]
 can-slcan = ["can", "serial-write"]
 can-gsusb = ["can", "dep:nusb"]

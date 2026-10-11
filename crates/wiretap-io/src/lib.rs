@@ -5,6 +5,8 @@
 //! `modbus-task`, `testing`, `serial` or a `can-*` transport. Every method is an `async fn` that runs on the
 //! caller's task.
 //!
+//! - `net` — `net::resolve`: a host and port to its addresses, within a
+//!   timeout; implied by `modbus-tcp` and `can-gvret`, which connect through it.
 //! - `modbus-tcp` — `modbus::ModbusTcp`: reads and device identification;
 //!   `modbus::Poller`: a schedule read over it.
 //! - `modbus-write` — its write methods. Strictly additive: no other feature
@@ -39,7 +41,7 @@
 //! - `can-socketcan` — `can::socketcan::{open, bitrates}`: a SocketCAN
 //!   interface. Implies `can`.
 //!
-//! Modbus, `can` and `can-gvret` build only for Windows, macOS, Linux and iOS,
+//! `net`, Modbus, `can` and `can-gvret` build only for Windows, macOS, Linux and iOS,
 //! serial, `can-gvret-serial` and `can-slcan` only for Windows, macOS and
 //! Linux, `can-gsusb` only for Windows and macOS (bar its Linux `devices`),
 //! `can-pcan` only for Windows and macOS, and `can-socketcan` only for Linux.
@@ -56,7 +58,7 @@
 pub mod modbus;
 
 #[cfg(all(
-    any(feature = "modbus-tcp", feature = "can-gvret"),
+    feature = "net",
     any(
         target_os = "windows",
         target_os = "macos",
@@ -64,7 +66,7 @@ pub mod modbus;
         target_os = "ios"
     )
 ))]
-mod net;
+pub mod net;
 
 #[cfg(all(
     feature = "serial",

@@ -87,12 +87,12 @@ It runs on the caller's tokio runtime and brings no TLS. For `https://`, enable 
 TLS backend on `reqwest` in your own manifest, and Cargo unifies it in:
 
 ```toml
-wiretap-gateway = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.6.0", features = ["client"] }
+wiretap-gateway = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.7.0", features = ["client"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }  # or "native-tls"
 ```
 
 ## Using it
 
 ```toml
-wiretap-gateway = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.6.0" }
+wiretap-gateway = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.7.0" }
 ```

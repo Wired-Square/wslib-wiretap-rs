@@ -432,6 +432,33 @@ mod pty {
         }
     }
 
+    /// canable-fw `9fddea4` answers nothing, and each send waited out the
+    /// read in flight: 20 frames a second.
+    #[tokio::test]
+    async fn a_device_that_answered_no_opening_command_takes_a_burst_of_sends_at_once() {
+        within(async {
+            let device = FakeSlcan::start(Behaviour {
+                silent: true,
+                ..Behaviour::default()
+            });
+            let mut task = open(device.options(), false).await;
+            connected(&mut task).await;
+            let writer = task.writer();
+            let sent = Instant::now();
+            for i in 0..40u8 {
+                let frame = CanFrame::data(0, 0x100, false, false, false, vec![i]);
+                writer.send(frame).await.unwrap().unwrap();
+            }
+            assert!(
+                sent.elapsed() < Duration::from_millis(500),
+                "{:?}",
+                sent.elapsed()
+            );
+            device.until_received("t100127\r").await;
+        })
+        .await
+    }
+
     #[tokio::test]
     async fn listen_only_opens_in_silent_mode_and_refuses_every_send() {
         within(async {

@@ -3,15 +3,21 @@
 //!
 //! Each command waits for its answer: `\r`, a bell, or a reply line. Opening
 //! counts silence as taken, since not every firmware answers; a probe needs an
-//! answer to `V`, `v` or `N`.
+//! answer to `V`, `v` or `N`. A device that answered no opening command is sent
+//! frames past the read in flight, which would otherwise hold each send for
+//! the whole read timeout.
 
 use std::{
     io::{self, Write},
     mem,
+    sync::{Arc, Mutex, PoisonError},
     time::Duration,
 };
 
-use tokio::time::{timeout, timeout_at, Instant};
+use tokio::{
+    task::spawn_blocking,
+    time::{timeout, timeout_at, Instant},
+};
 use wiretap_protocol::{
     slcan::{
         bitrate_command, data_bitrate_command, encode_frame_into, parse_version, Frame, Line,
@@ -104,6 +110,8 @@ struct Slcan {
     /// Read past a command's answer, for the next answer or the first read.
     unread: Vec<u8>,
     fd: bool,
+    /// Whether the device has answered any command.
+    answers: bool,
     on_bus: Option<OnBus>,
 }
 
@@ -150,7 +158,7 @@ impl Device for Slcan {
             .start(config.bitrate, bitrate, data_bitrate, options.listen_only)
             .await?;
         slcan.on_bus = second.map(|port| OnBus {
-            port,
+            port: Arc::new(Mutex::new(port)),
             closed: false,
         });
         Ok((slcan, info))
@@ -194,7 +202,10 @@ impl Device for Slcan {
             )
         };
         encode_frame_into(&mut self.outbound, &frame);
-        self.port.write(&mut self.outbound).await
+        match self.on_bus.as_ref().filter(|_| !self.answers) {
+            Some(on_bus) => on_bus.write(mem::take(&mut self.outbound)).await,
+            None => self.port.write(&mut self.outbound).await,
+        }
     }
 
     async fn close(mut self) {
@@ -210,14 +221,27 @@ impl Device for Slcan {
 /// An open channel's second handle on its port. Dropped before `close`, as when
 /// the runtime shuts down around its task, it closes the channel itself.
 struct OnBus {
-    port: Box<dyn Write + Send>,
+    port: Arc<Mutex<Box<dyn Write + Send>>>,
     closed: bool,
+}
+
+impl OnBus {
+    async fn write(&self, bytes: Vec<u8>) -> io::Result<()> {
+        let port = self.port.clone();
+        spawn_blocking(move || {
+            let mut port = port.lock().unwrap_or_else(PoisonError::into_inner);
+            port.write_all(&bytes).and_then(|()| port.flush())
+        })
+        .await
+        .map_err(io::Error::other)?
+    }
 }
 
 impl Drop for OnBus {
     fn drop(&mut self) {
         if !self.closed {
-            let _ = self.port.write_all(CLOSE.as_bytes());
+            let mut port = self.port.lock().unwrap_or_else(PoisonError::into_inner);
+            let _ = port.write_all(CLOSE.as_bytes());
         }
     }
 }
@@ -231,6 +255,7 @@ impl Slcan {
             outbound: Vec::new(),
             unread: Vec::new(),
             fd,
+            answers: false,
             on_bus: None,
         }
     }
@@ -323,6 +348,7 @@ impl Slcan {
         loop {
             if let Some((answer, used)) = self.answer(&bytes) {
                 self.unread = bytes.split_off(used);
+                self.answers = true;
                 return Ok(answer);
             }
             match self.read_before(deadline).await? {

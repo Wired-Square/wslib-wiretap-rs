@@ -35,7 +35,7 @@ the caller translates.
 ## Using it
 
 ```toml
-wiretap-checksum = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.9.1" }
+wiretap-checksum = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.10.0" }
 ```
 
 Also used by path within the workspace, by

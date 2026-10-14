@@ -456,3 +456,182 @@ fn the_mcp_shapes_keep_their_casing() {
         })
     );
 }
+
+const METERED: &str = r#"
+[meta]
+name = "metered"
+
+[frame.modbus.voltage]
+register_number = 260
+register_type = "input"
+length = 2
+
+[frame.modbus.power]
+register_number = 500
+register_type = "input"
+length = 2
+
+[frame.modbus.energy]
+register_number = 502
+register_type = "input"
+length = 2
+
+[frame.modbus.setpoint]
+register_number = 100
+register_type = "holding"
+length = 1
+"#;
+
+fn with_crc(body: &[u8]) -> Vec<u8> {
+    let crc = wiretap_checksum::algorithms::crc16_modbus_checksum(body);
+    [body, &crc.to_le_bytes()].concat()
+}
+
+/// A read request and its response, as a `modbus_rtu` archive keys them: both
+/// under `unit << 8 | function`, each one whole message.
+fn exchange(source: &mut MemorySource, unit: u8, function: u8, start: u16, values: &[u16]) {
+    let id = u32::from(unit) << 8 | u32::from(function);
+    let quantity = values.len() as u16;
+    let request = [
+        &[unit, function][..],
+        &start.to_be_bytes(),
+        &quantity.to_be_bytes(),
+    ]
+    .concat();
+    let data: Vec<u8> = values.iter().flat_map(|v| v.to_be_bytes()).collect();
+    let response = [&[unit, function, data.len() as u8][..], &data].concat();
+    source.push("modbus_rtu", id, false, with_crc(&request));
+    source.push("modbus_rtu", id, false, with_crc(&response));
+}
+
+/// Unit 1 FC04 is row `0x104`, which is the `voltage` register's number.
+fn metered_line() -> MemorySource {
+    let mut source = MemorySource::default();
+    exchange(&mut source, 1, 0x04, 500, &[1, 2, 3, 4]);
+    exchange(&mut source, 1, 0x03, 100, &[7]);
+    exchange(&mut source, 1, 0x04, 500, &[5, 6, 7, 8]);
+    exchange(&mut source, 1, 0x04, 700, &[9]);
+    exchange(&mut source, 2, 0x03, 40, &[1, 2]);
+    source
+}
+
+fn metered_coverage(source: &MemorySource) -> wiretap_analysis::source::CoverageReport {
+    let catalog = Catalog::parse(METERED).unwrap();
+    block_on(catalog_coverage(
+        source, "metered", &catalog, true, 10, None, None,
+    ))
+    .unwrap()
+}
+
+#[test]
+fn an_rtu_read_counts_every_catalogue_frame_it_holds_whole() {
+    let report = metered_coverage(&metered_line());
+
+    let present: Vec<(&str, &str, i64)> = report
+        .present
+        .iter()
+        .map(|f| (f.name.as_deref().unwrap(), f.frame_id_hex.as_str(), f.count))
+        .collect();
+    assert_eq!(
+        present,
+        [
+            ("energy", "unit 1 input 502", 2),
+            ("power", "unit 1 input 500", 2),
+            ("setpoint", "unit 1 holding 100", 1),
+        ],
+        "one count per exchange, from the response its request placed"
+    );
+    let energy = &report.present[0];
+    assert_eq!(
+        (energy.first_us, energy.last_us),
+        (0, 7),
+        "the row's bounds"
+    );
+    let roles = energy.byte_roles.as_ref().unwrap();
+    assert_eq!(roles.sample_count, 2, "profiled over its own registers");
+}
+
+#[test]
+fn an_rtu_row_id_is_not_a_register_number() {
+    let mut source = metered_line();
+    source.push("can", 0x104, false, vec![0; 8]);
+    let report = metered_coverage(&source);
+
+    let missing: Vec<(&str, &str)> = report
+        .missing
+        .iter()
+        .map(|f| (f.name.as_deref().unwrap(), f.frame_id_hex.as_str()))
+        .collect();
+    assert_eq!(
+        missing,
+        [("voltage", "unit 1 input 260")],
+        "unit 1 FC04 is row 0x104 = 260, and neither it nor CAN 0x104 reads register 260"
+    );
+}
+
+#[test]
+fn an_rtu_read_holding_no_catalogue_frame_is_uncatalogued_by_unit_bank_and_register() {
+    let mut source = metered_line();
+    source.push("can", 0x104, false, vec![0; 8]);
+    let report = metered_coverage(&source);
+
+    assert_eq!(
+        serde_json::to_value(&report.uncatalogued).unwrap(),
+        json!([
+            {
+                "frame_id": 40,
+                "frame_id_hex": "unit 2 holding 40",
+                "is_extended": false,
+                "count": 1,
+                "unit": 2,
+                "register_type": "holding",
+            },
+            { "frame_id": 0x104, "frame_id_hex": "0x104", "is_extended": false, "count": 1 },
+            {
+                "frame_id": 700,
+                "frame_id_hex": "unit 1 input 700",
+                "is_extended": false,
+                "count": 1,
+                "unit": 1,
+                "register_type": "input",
+            },
+        ])
+    );
+    assert_eq!(report.data_frames, 6, "three catalogue frames, three reads");
+}
+
+#[test]
+fn a_register_less_rtu_message_is_uncatalogued_by_unit_and_function() {
+    let mut source = MemorySource::default();
+    for _ in 0..2 {
+        source.push("modbus_rtu", 0x141, false, with_crc(&[1, 0x41, 0xDE, 0xAD]));
+    }
+    source.push("modbus_rtu", 0x184, false, with_crc(&[1, 0x84, 0x02]));
+    let report = metered_coverage(&source);
+
+    assert_eq!(
+        serde_json::to_value(&report.uncatalogued).unwrap(),
+        json!([{
+            "frame_id": 0x141,
+            "frame_id_hex": "unit 1 fn 0x41",
+            "is_extended": false,
+            "count": 2,
+            "unit": 1,
+        }]),
+        "a vendor code counts per message; an exception is skipped"
+    );
+}
+
+#[test]
+fn a_register_both_polled_and_read_off_the_line_is_one_data_frame() {
+    let mut source = metered_line();
+    source.push("modbus", 500, false, vec![0, 1, 0, 2]);
+    let report = metered_coverage(&source);
+
+    let power = report
+        .present
+        .iter()
+        .find(|f| f.name.as_deref() == Some("power"));
+    assert_eq!(power.unwrap().count, 3, "two reads and one poll");
+    assert_eq!(report.data_frames, 5, "three catalogue frames, two reads");
+}

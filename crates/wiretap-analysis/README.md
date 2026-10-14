@@ -66,7 +66,8 @@ checksum on most frame ids.
   as `InventoryRow`s and samples one frame's payloads (`Sampling::Recent` for
   roles, `Spread` for checksums); `byte_profile(s)`, `checksum_scan` (sixteen
   ids resident at a time) and `catalog_coverage` run over it, the last keyed by
-  the catalogue's `frame_id_mask` and reporting each signal's confidence as
+  the catalogue's `frame_id_mask` (a `modbus_rtu` row's messages re-framed into
+  reads and matched by register window) and reporting each signal's confidence as
   `low`, `medium`, `high` or `unset`. A `FrameSource` gives a `FrameSelection`'s
   timed frames for `message_order`. Both build on `Source`, which owns the one
   `Error`, so a store implementing both names `S::Error` once. The methods

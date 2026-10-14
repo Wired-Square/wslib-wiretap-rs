@@ -118,7 +118,8 @@ fn a_field_serde_skips_when_absent_is_optional() {
     assert_eq!(
         decl::<UncataloguedFrame>(),
         "type UncataloguedFrame = { frame_id: number, frame_id_hex: string, \
-         is_extended: boolean, count: number, seen_as_hex?: string, };"
+         is_extended: boolean, count: number, seen_as_hex?: string, unit?: number, \
+         register_type?: RegisterType, };"
     );
 }
 

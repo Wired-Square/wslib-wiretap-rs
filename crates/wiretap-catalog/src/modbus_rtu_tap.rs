@@ -218,6 +218,12 @@ impl RtuTap {
         self.stream.bytes_fed()
     }
 
+    /// Whether bytes of a message neither completed nor given up on are
+    /// buffered, so the next read continues it.
+    pub fn mid_message(&self) -> bool {
+        self.stream.buffer_start() < self.stream.bytes_fed()
+    }
+
     fn stamp_all(&mut self, messages: Vec<ModbusRtuMessage>) -> Vec<TappedMessage> {
         let tapped = messages
             .into_iter()
@@ -722,6 +728,30 @@ pub(crate) mod tests {
         tap.push(&one_register_read()[..5], at(0));
         tap.reset();
         assert_eq!(tap.bytes_fed(), 0);
+    }
+
+    #[test]
+    fn a_half_received_message_is_mid_message_until_it_completes() {
+        let request = one_register_read();
+        let mut tap = tap_on_9600_8n1();
+        assert!(!tap.mid_message());
+        tap.push(&request[..5], at(0));
+        assert!(tap.mid_message());
+        assert_eq!(tap.push(&request[5..], at(1)).len(), 1);
+        assert!(!tap.mid_message());
+        tap.push(&request[..5], at(2));
+        tap.reset();
+        assert!(!tap.mid_message(), "a reset forgets the half message");
+    }
+
+    /// Bytes fed past the last message's end are not a message when the
+    /// framer has already resynced over them.
+    #[test]
+    fn junk_resynced_over_is_not_mid_message() {
+        let mut tap = tap_on_9600_8n1();
+        let got = tap.push(&[&one_register_read()[..], &[0xFF; 6]].concat(), at(0));
+        assert!(got[0].message.end_offset < tap.bytes_fed());
+        assert!(!tap.mid_message());
     }
 
     /// The desktop's flush, then its outage keeping the tap.

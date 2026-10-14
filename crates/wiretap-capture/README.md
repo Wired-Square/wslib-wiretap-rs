@@ -77,7 +77,7 @@ The rules:
 ## Using it
 
 ```toml
-wiretap-capture = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.10.0" }
+wiretap-capture = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.10.1" }
 ```
 
 ```rust

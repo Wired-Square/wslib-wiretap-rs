@@ -6,6 +6,7 @@ use wiretap_catalog::modbus_rtu_stream::{Direction, ModbusRtuOptions, RtuSetting
 use wiretap_catalog::model::{Confidence, Frame, Protocol, RegisterType};
 use wiretap_catalog::Catalog;
 use wiretap_decode::frame_id::format_frame_id;
+use wiretap_gateway::filter::CaptureProtocol;
 
 use super::{InventoryRow, PayloadQuery, PayloadSource, Sampling};
 use crate::roles::{profile_bytes, ByteProfile};
@@ -225,7 +226,7 @@ fn roll_up<'a>(
     by_id
 }
 
-const MODBUS_RTU: &str = "modbus_rtu";
+const MODBUS_RTU: &str = CaptureProtocol::ModbusRtu.as_str();
 
 #[derive(Default)]
 struct RtuReads<'c> {

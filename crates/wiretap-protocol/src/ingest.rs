@@ -634,11 +634,15 @@ pub fn valid_daemon_id(id: &str) -> bool {
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b".-_".contains(&b))
 }
 
+/// The longest capture database name, in bytes: PostgreSQL's identifier limit.
+pub const MAX_DATABASE_NAME_LEN: usize = 63;
+
 /// Whether the gateway takes `name` as a capture database: a lowercase ASCII
-/// letter, then lowercase letters, digits or `_`, at most 63 bytes. `""` is
-/// not a name — in `HELLO` it means the default, and that is the caller's branch.
+/// letter, then lowercase letters, digits or `_`, at most
+/// [`MAX_DATABASE_NAME_LEN`] bytes. `""` is not a name — in `HELLO` it means
+/// the default, and that is the caller's branch.
 pub fn valid_database_name(name: &str) -> bool {
-    name.len() <= 63
+    name.len() <= MAX_DATABASE_NAME_LEN
         && name.starts_with(|c: char| c.is_ascii_lowercase())
         && name
             .bytes()
@@ -1933,10 +1937,17 @@ mod tests {
 
     #[test]
     fn a_database_name_is_a_lowercase_letter_then_up_to_62_more() {
-        for ok in ["a", "wiretap", "vehicle_1", "a_", &"x".repeat(63)] {
+        assert_eq!(MAX_DATABASE_NAME_LEN, 63);
+        for ok in [
+            "a",
+            "wiretap",
+            "vehicle_1",
+            "a_",
+            &"x".repeat(MAX_DATABASE_NAME_LEN),
+        ] {
             assert!(valid_database_name(ok), "{ok:?}");
         }
-        let too_long = "x".repeat(64);
+        let too_long = "x".repeat(MAX_DATABASE_NAME_LEN + 1);
         for bad in [
             "",
             too_long.as_str(),

@@ -74,7 +74,7 @@ the server to drop the connection.
 | 6      | 1    | `token_len`     | 0–255                                  |
 | 7      | n    | token           | API key / shared secret, compared constant-time |
 | 7+n    | 1    | `db_len`        | 0–63 (before v3 optional — absent means 0) |
-| 8+n    | m    | database        | target capture database name: a lowercase letter, then `[a-z0-9_]`, at most 63 (`valid_database_name`) |
+| 8+n    | m    | database        | target capture database name: a lowercase letter, then `[a-z0-9_]`, at most 63 (`MAX_DATABASE_NAME_LEN`, `valid_database_name`) |
 | 8+n+m  | 1    | `id_len`        | v3: 0–63                               |
 | 9+n+m  | i    | `daemon_id`     | v3: `[a-z0-9][a-z0-9._-]*` (`valid_daemon_id`), or empty |
 | 9+n+m+i | 1   | `dev_count`     | v3: 0–255                              |

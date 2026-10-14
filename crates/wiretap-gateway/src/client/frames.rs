@@ -16,6 +16,7 @@ pub struct ArchiveFrame {
     pub is_rtr: bool,
     pub is_brs: bool,
     pub is_esi: bool,
+    pub crc_valid: Option<bool>,
     pub bus: u8,
     pub dir: String,
 }
@@ -41,6 +42,7 @@ impl TryFrom<FrameBatchRow> for ArchiveFrame {
             is_rtr: row.is_rtr,
             is_brs: row.is_brs,
             is_esi: row.is_esi,
+            crc_valid: row.crc_valid,
             bus: row.bus,
             dir: row.dir,
         })

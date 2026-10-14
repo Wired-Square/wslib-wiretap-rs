@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use serde::Serialize;
-use wiretap_catalog::model::{Confidence, Frame};
+use wiretap_catalog::model::{Confidence, Frame, Protocol};
 use wiretap_catalog::Catalog;
 use wiretap_decode::frame_id::format_frame_id;
 
@@ -140,6 +140,19 @@ impl<'a> DataFrame<'a> {
     }
 }
 
+const STANDARD_CAN_ID: u32 = 0x7FF;
+
+/// The id the catalogue counts `row` under. A mask reaching past 11 bits was
+/// written for extended ids, so it leaves a standard CAN id as it is.
+fn catalogue_id(row: &InventoryRow, mask: u32) -> u32 {
+    let standard_can = row.protocol == Protocol::Can.as_str() && !row.is_extended;
+    if standard_can && mask & !STANDARD_CAN_ID != 0 {
+        row.frame_id
+    } else {
+        row.frame_id & mask
+    }
+}
+
 /// The inventory rolled up onto the ids the catalogue is keyed by. `mask` is the
 /// catalogue's `frame_id_mask`, or `u32::MAX` for none, when the only merge is a
 /// std/extended pair.
@@ -147,7 +160,7 @@ fn roll_up(inventory: &[InventoryRow], mask: u32) -> HashMap<u32, DataFrame<'_>>
     let mut by_id: HashMap<u32, DataFrame> = HashMap::new();
     for row in inventory {
         by_id
-            .entry(row.frame_id & mask)
+            .entry(catalogue_id(row, mask))
             .and_modify(|d| d.merge(row))
             .or_insert_with(|| DataFrame::new(row));
     }
@@ -289,6 +302,42 @@ mod tests {
         assert_eq!(
             data.top.frame_id, 0x1802_FF02,
             "payloads sample by the most-seen raw id — the masked id is not on the wire"
+        );
+    }
+
+    /// `sbrxxx_inter_tower.toml`'s mask is for bus 0's 29-bit ids; folding
+    /// bus 1's 11-bit `0x700`–`0x73F` under it made them one `0x700` row.
+    #[test]
+    fn a_mask_for_extended_ids_leaves_standard_can_ids_apart() {
+        let inventory = [
+            row(0x1802_FF01, 10, 0, 1),
+            row(0x1802_FF02, 10, 0, 1),
+            InventoryRow::new("can", 0x700, false, 1, 0, 1, 8),
+            InventoryRow::new("can", 0x701, false, 1, 0, 1, 8),
+            InventoryRow::new("can", 0x73F, false, 1, 0, 1, 8),
+        ];
+        let rolled = roll_up(&inventory, 0x1FFF_FF00);
+        let mut ids: Vec<u32> = rolled.keys().copied().collect();
+        ids.sort_unstable();
+        assert_eq!(ids, [0x700, 0x701, 0x73F, 0x1802_FF00]);
+
+        let serial = [
+            InventoryRow::new("serial", 0x1201, false, 1, 0, 1, 8),
+            InventoryRow::new("serial", 0x1202, false, 1, 0, 1, 8),
+        ];
+        assert_eq!(
+            roll_up(&serial, 0xFF00).len(),
+            1,
+            "a serial id has no width"
+        );
+        let standard = [
+            InventoryRow::new("can", 0x701, false, 1, 0, 1, 8),
+            InventoryRow::new("can", 0x702, false, 1, 0, 1, 8),
+        ];
+        assert_eq!(
+            roll_up(&standard, 0x7F0).len(),
+            1,
+            "an 11-bit mask still applies"
         );
     }
 

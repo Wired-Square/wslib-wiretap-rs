@@ -13,6 +13,7 @@ use crate::Protocol;
 /// A frame's rows in a time window: `start_us` inclusive, `end_us` exclusive.
 /// `None`, or no protocols, filters nothing.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct FrameRowFilter {
     pub frame_id: Option<u32>,
     pub is_extended: Option<bool>,
@@ -24,6 +25,7 @@ pub struct FrameRowFilter {
 
 /// A capture row's `protocol`, as the desktop stores it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum CaptureProtocol {
     Can,

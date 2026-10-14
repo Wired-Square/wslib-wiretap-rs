@@ -10,6 +10,7 @@ use crate::roles::{
 
 /// One note, in the order the desktop shows them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(
     tag = "code",
     rename_all = "camelCase",
@@ -73,6 +74,7 @@ pub enum ByteNote {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct StaticByte {
     pub position: usize,
     pub value: u8,
@@ -80,6 +82,7 @@ pub struct StaticByte {
 
 /// A frame's notes and its mux cases'.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ByteNotes {
     pub frame: Vec<ByteNote>,
@@ -88,6 +91,7 @@ pub struct ByteNotes {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MuxCaseNotes {
     pub value: u16,

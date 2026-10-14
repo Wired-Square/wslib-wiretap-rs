@@ -9,6 +9,7 @@ use crate::{extract_bits, scale, Endianness};
 
 /// A bit field in a payload, numbered as [`extract_bits`] numbers it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct PayloadField {
     pub start_bit: u32,
@@ -51,6 +52,7 @@ impl PayloadField {
 /// A [`PayloadField`] scaled `raw × factor + offset`; its JSON is the desktop's
 /// `HypothesisParams`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ScaledField {
     #[serde(flatten)]

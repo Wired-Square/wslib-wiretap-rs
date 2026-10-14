@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Health {
     #[serde(default)]
     pub status: String,
@@ -15,6 +16,7 @@ pub struct Health {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct DatabaseInfo {
     pub name: String,
     pub size_bytes: i64,
@@ -29,6 +31,7 @@ pub struct DatabaseInfo {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct DatabaseList {
     pub databases: Vec<DatabaseInfo>,
     /// The version every database is headed for.
@@ -37,6 +40,7 @@ pub struct DatabaseList {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ErrorBody {
     pub error: String,
 }

@@ -38,16 +38,21 @@ const MAX_CANDIDATES_PER_ID: usize = 6;
 /// Serialisable both ways so a result can echo the settings that produced it —
 /// the first thing an agent reading a headless scan wants to know.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChecksumScanOptions {
     /// Frames an id needs before it is worth analysing.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub min_samples: usize,
     /// Checksum offsets to try, end-relative.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub positions: Vec<i32>,
     /// Recover arbitrary CRC polynomials, not only the named algorithms.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub search_custom_polynomials: bool,
     /// How checksum-shaped a byte column must look before the solver is asked
     /// about it. Zero solves every column that was not rejected outright.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub min_likeness: u8,
 }
 
@@ -64,6 +69,7 @@ impl Default for ChecksumScanOptions {
 
 /// One configuration that explains a frame id, with the evidence for it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct DiscoveredChecksum {
     pub specification: ChecksumSpecification,
@@ -146,6 +152,7 @@ impl DiscoveredChecksum {
 /// pair is the identity — named rather than a positional `(u32, bool)`, because
 /// a caller passing the wrong `bool` should not be silent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct FrameKey {
     pub frame_id: u32,
@@ -164,6 +171,7 @@ impl FrameKey {
 /// What the scan found for one frame id — including when it found nothing, so
 /// the reason is visible rather than the id simply vanishing from the results.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct FrameChecksumFinding {
     #[serde(flatten)]
@@ -182,6 +190,7 @@ pub struct FrameChecksumFinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ChecksumScanResult {
     pub findings: Vec<FrameChecksumFinding>,

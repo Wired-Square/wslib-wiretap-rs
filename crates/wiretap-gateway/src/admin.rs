@@ -6,17 +6,20 @@ use serde::{Deserialize, Serialize};
 
 /// `GET /v1/admin/daemons`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct DaemonList {
     pub daemons: Vec<Daemon>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Daemon {
     pub daemon_id: String,
     pub devices: Vec<DaemonDevice>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct DaemonDevice {
     pub interface: String,
     /// `None`: assigned, but never seen in a `HELLO`.
@@ -29,6 +32,7 @@ pub struct DaemonDevice {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Assignment {
     pub blob_sha: String,
     /// The catalogue's `meta.name`.
@@ -39,6 +43,7 @@ pub struct Assignment {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ActiveCatalog {
     /// `assigned`, `local` or `none`.
     pub source: String,
@@ -49,6 +54,7 @@ pub struct ActiveCatalog {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct RefusedCatalog {
     pub blob_sha: String,
     /// `hash_mismatch`, `did_not_parse`, `fetch_failed` or `other`.
@@ -57,6 +63,7 @@ pub struct RefusedCatalog {
 
 /// Where a catalogue came from; every field is left out when absent.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Provenance {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repo: Option<String>,
@@ -73,6 +80,7 @@ pub struct Provenance {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ProvenanceBase {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repo: Option<String>,
@@ -84,6 +92,7 @@ pub struct ProvenanceBase {
 
 /// `PUT /v1/admin/assignments`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct AssignCatalog {
     pub daemon_id: String,
     pub interface: String,
@@ -97,6 +106,7 @@ pub struct AssignCatalog {
 
 /// The `PUT`'s 200.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct AssignedCatalog {
     pub daemon_id: String,
     pub interface: String,
@@ -106,6 +116,7 @@ pub struct AssignedCatalog {
 
 /// The `PUT`'s 400: the catalogue did not validate.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct CatalogRejected {
     pub error: String,
     pub findings: Vec<CatalogFinding>,
@@ -113,6 +124,7 @@ pub struct CatalogRejected {
 
 /// The 409 of a `PUT` or `DELETE` whose `expected` did not match.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct AssignmentConflict {
     pub error: String,
     /// The SHA assigned now.
@@ -121,6 +133,7 @@ pub struct AssignmentConflict {
 
 /// `DELETE /v1/admin/assignments`'s query string.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct UnassignParams {
     pub daemon_id: String,
     pub interface: String,
@@ -131,6 +144,7 @@ pub struct UnassignParams {
 
 /// `GET /v1/admin/catalogs/{sha}`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct StoredCatalog {
     pub blob_sha: String,
     pub content: String,
@@ -141,6 +155,7 @@ pub struct StoredCatalog {
 /// The JSON of `wiretap_catalog::ValidationError`, mirrored so this crate
 /// stays serde-only.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct CatalogFinding {
     pub field: String,
     pub message: String,

@@ -46,6 +46,7 @@ pub fn histogram(values: &[f64], bin_count: usize) -> Vec<HistogramBin> {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct BitToggles {
     /// Per bit, `byte * 8 + bit`, over the longest payload seen.

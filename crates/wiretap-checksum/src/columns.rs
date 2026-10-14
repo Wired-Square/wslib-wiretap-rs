@@ -20,6 +20,7 @@ const CONSTANT_COLUMN_MIN_SAMPLES: usize = 8;
 
 /// What one byte column does across the sample.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ColumnStats {
     /// Signed, as [`resolve_byte_index`](crate::frame::resolve_byte_index) reads it:

@@ -16,6 +16,7 @@ pub enum Protocol {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct FrameFilter {
     pub frame_id: u32,
     pub is_extended: Option<bool>,
@@ -26,6 +27,7 @@ pub struct FrameFilter {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ByteChangesParams {
     #[serde(flatten)]
     pub filter: FrameFilter,
@@ -35,6 +37,7 @@ pub struct ByteChangesParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct FrameChangesParams {
     #[serde(flatten)]
     pub filter: FrameFilter,
@@ -43,6 +46,7 @@ pub struct FrameChangesParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct MirrorValidationParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protocol: Option<Protocol>,
@@ -57,6 +61,7 @@ pub struct MirrorValidationParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct MuxStatisticsParams {
     #[serde(flatten)]
     pub filter: FrameFilter,
@@ -68,6 +73,7 @@ pub struct MuxStatisticsParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct FirstLastParams {
     #[serde(flatten)]
     pub filter: FrameFilter,
@@ -75,6 +81,7 @@ pub struct FirstLastParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct FrequencyParams {
     #[serde(flatten)]
     pub filter: FrameFilter,
@@ -84,6 +91,7 @@ pub struct FrequencyParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct DistributionParams {
     #[serde(flatten)]
     pub filter: FrameFilter,
@@ -92,6 +100,7 @@ pub struct DistributionParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct GapAnalysisParams {
     #[serde(flatten)]
     pub filter: FrameFilter,
@@ -101,6 +110,7 @@ pub struct GapAnalysisParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct PatternSearchParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protocol: Option<Protocol>,
@@ -113,6 +123,7 @@ pub struct PatternSearchParams {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct PayloadsParams {
     #[serde(flatten)]
     pub filter: FrameFilter,
@@ -121,6 +132,7 @@ pub struct PayloadsParams {
 
 /// `/time-bounds`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ProtocolQuery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protocol: Option<Protocol>,
@@ -128,6 +140,7 @@ pub struct ProtocolQuery {
 
 /// `/inventory`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct TimeRangeQuery {
     pub start: Option<String>,
     pub end: Option<String>,
@@ -140,6 +153,7 @@ pub struct TimeRangeQuery {
 
 /// `/frames`; `after` is the previous batch's `next_cursor`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct FramesQuery {
     pub start: Option<String>,
     pub end: Option<String>,
@@ -151,6 +165,7 @@ pub struct FramesQuery {
 
 /// `/events`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct EventsQuery {
     pub start: Option<String>,
     pub end: Option<String>,

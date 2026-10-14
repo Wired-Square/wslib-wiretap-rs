@@ -17,6 +17,7 @@ const SOURCE_WINDOW: usize = 5;
 
 /// The id and source-address candidates in one link's serial frames.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct SerialStructure {
     pub sample_count: usize,
@@ -30,6 +31,7 @@ pub struct SerialStructure {
 
 /// Bytes `start..start + len`, read big-endian, as a candidate field.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct FieldCandidate {
     pub start: usize,
@@ -45,6 +47,7 @@ pub struct FieldCandidate {
 
 /// Why a candidate scored as it did; the caller renders these as text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(
     tag = "code",
     rename_all = "camelCase",

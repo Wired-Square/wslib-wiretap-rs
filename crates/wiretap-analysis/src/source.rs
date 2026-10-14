@@ -88,8 +88,10 @@ pub trait FrameSource: Source {
 
 /// One frame's byte profile, as the Changes view and the MCP tools report it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct FrameByteProfile {
+    #[cfg_attr(feature = "ts", ts(optional))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub protocol: Option<String>,
     pub frame_id: u32,
@@ -281,6 +283,7 @@ pub async fn byte_profiles<S: PayloadSource>(
 
 /// One protocol's message order.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ProtocolOrder {
     pub protocol: String,
     pub order: OrderAnalysis,

@@ -60,6 +60,7 @@ pub fn inherited_byte_indices(frame: &Frame) -> BTreeSet<usize> {
 
 /// The current state of one mirror relationship, as reported to the UI.
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MirrorVerdict {
     /// Catalogue frame id this mirror is compared against.

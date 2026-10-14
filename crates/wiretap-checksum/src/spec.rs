@@ -14,6 +14,7 @@ use crate::frame::{extract_checksum, field_fits, resolve_byte_index};
 /// Both the unit the sweep iterates and the wire type for the single-spec live
 /// check the dialog runs behind a hand-edited configuration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ChecksumSpec {
     pub algorithm: ChecksumAlgorithm,
@@ -27,6 +28,7 @@ pub struct ChecksumSpec {
 
 /// How one spec fared across the sampled frames.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ChecksumSpecResult {
     /// Index into the `specs` array the caller passed in.

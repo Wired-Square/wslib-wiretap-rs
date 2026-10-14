@@ -11,6 +11,7 @@ use crate::roles::{profile_bytes, ByteProfile};
 /// A catalogue signal's confidence as coverage reports it: `unset` both where
 /// the catalogue says `none` and where it says nothing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum CoverageConfidence {
     Low,
@@ -31,6 +32,7 @@ impl From<Option<Confidence>> for CoverageConfidence {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ConfidenceTally {
     pub high: usize,
     pub medium: usize,
@@ -50,12 +52,14 @@ impl ConfidenceTally {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct SignalCoverage {
     pub name: String,
     pub confidence: CoverageConfidence,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct PresentFrame {
     pub frame_id: u32,
     pub frame_id_hex: String,
@@ -64,11 +68,13 @@ pub struct PresentFrame {
     pub first_us: i64,
     pub last_us: i64,
     pub signals: Vec<SignalCoverage>,
+    #[cfg_attr(feature = "ts", ts(optional))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub byte_roles: Option<ByteProfile>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct MissingFrame {
     pub frame_id: u32,
     pub frame_id_hex: String,
@@ -76,6 +82,7 @@ pub struct MissingFrame {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct UncataloguedFrame {
     /// The id to add to the catalogue — masked, when the catalogue is.
     pub frame_id: u32,
@@ -84,11 +91,13 @@ pub struct UncataloguedFrame {
     pub count: i64,
     /// A raw id this was actually seen as, when that differs from `frame_id`.
     /// Absent without a `frame_id_mask`, so an ordinary report is unchanged.
+    #[cfg_attr(feature = "ts", ts(optional))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seen_as_hex: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct CoverageReport {
     pub catalog: String,
     pub catalog_frames: usize,

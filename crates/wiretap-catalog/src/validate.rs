@@ -624,9 +624,12 @@ fn resolve_byte_index(index: i64, frame_length: i64) -> i64 {
 // ---- meta ----
 
 #[derive(Debug, Default, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields = nullable))]
 pub struct MetaInput {
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(default)]
     pub name: String,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(default)]
     pub version: i64,
 }
@@ -645,7 +648,9 @@ pub fn validate_meta_fields(m: &MetaInput) -> Vec<ValidationError> {
 // ---- signal ----
 
 #[derive(Debug, Default, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields = nullable))]
 pub struct SignalInput {
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(default)]
     pub name: String,
     pub start_bit: Option<i64>,
@@ -655,6 +660,7 @@ pub struct SignalInput {
     pub max: Option<f64>,
     pub format: Option<String>,
     #[serde(rename = "enum")]
+    #[cfg_attr(feature = "ts", ts(optional = nullable, type = "unknown"))]
     pub enum_map: Option<serde_json::Value>,
 }
 
@@ -714,9 +720,12 @@ fn default_frame_length() -> i64 {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields = nullable))]
 pub struct ChecksumInput {
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(default)]
     pub name: String,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(default)]
     pub algorithm: String,
     pub start_byte: Option<i64>,
@@ -724,12 +733,14 @@ pub struct ChecksumInput {
     pub endianness: Option<String>,
     pub calc_start_byte: Option<i64>,
     pub calc_end_byte: Option<i64>,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(default = "default_frame_length")]
     pub frame_length: i64,
 }
 
 /// How well a declared checksum reproduces real frames.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ChecksumVerification {
     /// Frames the declaration reproduced.
@@ -916,11 +927,14 @@ pub fn validate_checksum_fields(c: &ChecksumInput) -> Vec<ValidationError> {
 // ---- frame (common + protocol config) ----
 
 #[derive(Debug, Default, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(optional_fields = nullable))]
 #[serde(rename_all = "camelCase")]
 pub struct FrameInput {
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(default)]
     pub protocol: String,
     /// Identity: CAN id, serial frame_id, or the Modbus table key.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(default)]
     pub key: String,
     pub length: Option<i64>,
@@ -939,9 +953,11 @@ pub struct FrameInput {
     // Serial
     pub delimiter: Option<Vec<i64>>,
     // Context
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(default)]
     pub existing_keys: Vec<String>,
     pub original_key: Option<String>,
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     #[serde(default)]
     pub available_peers: Vec<String>,
 }

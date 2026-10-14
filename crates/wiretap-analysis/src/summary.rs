@@ -12,6 +12,7 @@ use crate::roles::ByteProfile;
 use crate::scan::FrameKey;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ChangesCounts {
     pub frames: usize,
@@ -44,6 +45,7 @@ pub fn changes_counts<'a>(
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct OrderTotals {
     pub frames: usize,
@@ -57,6 +59,7 @@ pub struct OrderTotals {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ProtocolOrderCounts {
     pub protocol: String,
@@ -68,6 +71,7 @@ pub struct ProtocolOrderCounts {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct BusCounts {
     pub bus: u8,

@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::Protocol;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct InventoryEntry {
     pub frame_id: u32,
     pub is_extended: bool,
@@ -32,6 +33,7 @@ impl InventoryEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct InventoryResponse {
     pub entries: Vec<InventoryEntry>,
     /// The gateway cut `entries` at the request's `limit`; absent from older gateways.
@@ -40,6 +42,7 @@ pub struct InventoryResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct TimeBounds {
     pub min_ts_us: Option<i64>,
     pub max_ts_us: Option<i64>,
@@ -48,6 +51,7 @@ pub struct TimeBounds {
 /// `dlc` must stay directly before `len`: WireTAP-Server's smoke test greps
 /// the pair.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct FrameBatchRow {
     pub ts_us: i64,
     pub id: u32,
@@ -70,17 +74,20 @@ pub struct FrameBatchRow {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct FrameBatch {
     pub frames: Vec<FrameBatchRow>,
     pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct PayloadsResponse {
     pub payloads: Vec<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(rename = "ArchiveImportResult"))]
 pub struct ImportResult {
     pub imported: u64,
     pub elapsed_ms: u64,

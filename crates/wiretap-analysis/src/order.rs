@@ -37,6 +37,7 @@ pub struct TimedFrame {
 
 /// Message order across a capture.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct OrderAnalysis {
     pub total_frames: usize,
@@ -50,6 +51,7 @@ pub struct OrderAnalysis {
 
 /// Message order on one bus.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct BusOrder {
     pub bus: u8,
@@ -68,6 +70,7 @@ pub struct BusOrder {
 
 /// The order frames follow from a start id until one repeats.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CyclePattern {
     pub start: FrameKey,
@@ -89,6 +92,7 @@ impl CyclePattern {
 
 /// Ids whose period falls within `interval_ms ± tolerance_ms`.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct IntervalGroup {
     pub interval_ms: f64,
@@ -99,6 +103,7 @@ pub struct IntervalGroup {
 
 /// An id that may start a cycle, by the gaps before it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct StartCandidate {
     #[serde(flatten)]
@@ -111,6 +116,7 @@ pub struct StartCandidate {
 
 /// A mux id's timing.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MuxTiming {
     #[serde(flatten)]
@@ -125,6 +131,7 @@ pub struct MuxTiming {
 
 /// An id sent in bursts, or at more than one length.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct BurstTiming {
     #[serde(flatten)]
@@ -141,6 +148,7 @@ pub struct BurstTiming {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "kebab-case")]
 pub enum BurstFlag {
     VariableLength,
@@ -153,6 +161,7 @@ pub enum BurstFlag {
 
 /// An id seen on more than one bus.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MultiBusFrame {
     #[serde(flatten)]

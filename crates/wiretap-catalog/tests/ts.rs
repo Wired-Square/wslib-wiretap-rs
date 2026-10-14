@@ -3,15 +3,18 @@
 //! `Config` (`large_int` as `number`), doc comments aside.
 
 use ts_rs::{Config, TS};
+use wiretap_catalog::modbus::{ModbusSignal, ModbusWrite};
 use wiretap_catalog::model::{
     CanConfig, Catalog, ChecksumConfig, ChecksumParameters, Confidence, DisplayHint,
     EffectiveDefaults, Frame, FrameChecksum, FrameTunnel, FunctionCode, HeaderField,
     HeaderFieldPosition, Meta, ModbusConfig, Mux, MuxCase, NodeDef, Protocol, RegisterType,
     SerialConfig, Signal, SignalFormat, TunnelProtocol, ValidationError,
 };
+use wiretap_catalog::summary::{CaseRow, FrameRow, MuxRow};
+use wiretap_catalog::validate::{FrameInput, SignalInput};
 use wiretap_catalog::{
-    DiffKind, DiffRow, FrameLayout, LayoutRange, LengthRule, RangeKind, RtuSettings, Selector,
-    VendorLen,
+    DiffKind, DiffRow, FrameLayout, LayoutRange, LengthRule, MirrorVerdict, RangeKind, RtuSettings,
+    Selector, VendorLen,
 };
 
 fn decl<T: TS>() -> String {
@@ -260,5 +263,71 @@ fn a_frame_layout_is_the_bit_layout_preview() {
     assert_eq!(
         decl::<RangeKind>(),
         "type RangeKind = \"signal\" | \"selector\" | \"checksum\";"
+    );
+}
+
+#[test]
+fn validation_inputs_may_leave_out_what_serde_defaults() {
+    assert_eq!(
+        decl::<FrameInput>(),
+        "type FrameInput = { protocol?: string, key?: string, length?: number | null, \
+         transmitter?: string | null, interval?: number | null, maxLength?: number | null, \
+         extended?: boolean | null, registerNumber?: number | null, \
+         deviceAddress?: number | null, registerType?: string | null, \
+         registerBase?: number | null, nodeAddress?: number | null, \
+         delimiter?: Array<number> | null, existingKeys?: Array<string>, \
+         originalKey?: string | null, availablePeers?: Array<string>, };"
+    );
+    assert_eq!(
+        decl::<SignalInput>(),
+        "type SignalInput = { name?: string, start_bit?: number | null, \
+         bit_length?: number | null, endianness?: string | null, min?: number | null, \
+         max?: number | null, format?: string | null, enum?: unknown, };"
+    );
+}
+
+#[test]
+fn a_summary_nests_mux_rows_through_their_cases() {
+    assert_eq!(
+        decl::<FrameRow>(),
+        "type FrameRow = { protocol: Protocol, key: string, frameId?: number | null, \
+         name?: string | null, length: number, transmitter?: string | null, \
+         bus?: number | null, interval?: Interval | null, notes?: Array<string>, \
+         inheritedFields?: Array<string>, signals: Array<SignalRow>, mux?: MuxRow | null, };"
+    );
+    assert_eq!(
+        decl::<MuxRow>(),
+        "type MuxRow = { name?: string | null, startBit: number, bitLength: number, \
+         default?: string | null, notes?: Array<string>, cases: Array<CaseRow>, };"
+    );
+    assert_eq!(
+        decl::<CaseRow>(),
+        "type CaseRow = { key: string, values: Array<CaseRange>, notes?: Array<string>, \
+         signals: Array<SignalRow>, mux?: MuxRow | null, };"
+    );
+}
+
+#[test]
+fn a_mirror_verdict_is_served_camel_case() {
+    assert_eq!(
+        decl::<MirrorVerdict>(),
+        "type MirrorVerdict = { sourceFrameId: number, isValid: boolean | null, \
+         timeDeltaMs: number, mismatchedByteIndices: Array<number>, };"
+    );
+}
+
+#[test]
+fn a_modbus_manifest_is_snake_case() {
+    assert_eq!(
+        decl::<ModbusSignal>(),
+        "type ModbusSignal = { name: string, start_bit: number, bit_length: number, \
+         factor: number | null, offset: number | null, unit: string | null, signed: boolean, \
+         format: SignalFormat | null, byte_order: Endianness | null, \
+         word_order: Endianness | null, enum: { [key in string]: string } | null, \
+         display?: DisplayHint | null, };"
+    );
+    assert_eq!(
+        decl::<ModbusWrite>(),
+        "type ModbusWrite = { bank: WriteBank, address: number, value: number, mask: number, };"
     );
 }

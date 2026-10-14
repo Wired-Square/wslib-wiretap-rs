@@ -58,6 +58,7 @@ pub fn calculated_range(
 
 /// Result of checksum validation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ChecksumValidationResult {
     /// The checksum value extracted from the frame
     pub extracted: u16,

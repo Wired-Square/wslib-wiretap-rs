@@ -20,6 +20,7 @@ ts-rs = { version = "12", optional = true, features = ["no-serde-warnings"] }
 ts = [
     "dep:ts-rs",
     "wiretap-catalog/ts",
+    "wiretap-checksum/ts",
     "wiretap-decode/ts",
     "wiretap-gateway/ts",
 ]

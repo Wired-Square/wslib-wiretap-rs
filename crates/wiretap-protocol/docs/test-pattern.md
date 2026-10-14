@@ -98,7 +98,7 @@ Byte 4 is the command; bytes 5-7 are its body.
 
 | Code | Name | Body |
 |------|------|------|
-| `0x01` | Start | mode, run tag, — |
+| `0x01` | Start | mode (§8), run tag, — |
 | `0x02` | Stop | — |
 | `0x03` | Set rate | target frames/sec, big-endian u16 |
 | `0x04` | Request status | — |
@@ -232,13 +232,16 @@ these are CAN frames. See [`docs/gvret.md`](gvret.md).
 
 ## 8. Test modes
 
-| Mode | What it does | What it measures |
-|------|--------------|------------------|
-| Echo | pings at a set rate; responder replies to each | response rate, drops, duplicates, reordering |
-| Sweep | one frame per length code, lock-step | payload integrity at every length |
-| Throughput | frames as fast as the transport allows, one-way | sustained frames/sec, loss, corruption |
-| Latency | probes at a low rate to avoid queueing | RTT min/max/mean/p50/p95/p99 |
-| Reliability | echo at a moderate rate, for minutes or hours | cumulative drops over time |
+| Code | Mode | What it does | What it measures |
+|------|------|--------------|------------------|
+| `0x01` | Echo | pings at a set rate; responder replies to each | response rate, drops, duplicates, reordering |
+| `0x02` | Sweep | one frame per length code, lock-step | payload integrity at every length |
+| `0x03` | Throughput | frames as fast as the transport allows, one-way | sustained frames/sec, loss, corruption |
+| `0x04` | Latency | probes at a low rate to avoid queueing | RTT min/max/mean/p50/p95/p99 |
+| `0x05` | Reliability | echo at a moderate rate, for minutes or hours | cumulative drops over time |
+
+The code is the mode byte a `Start` carries (§3). A responder answers the same
+in every mode, so the byte only tells its log what it is taking part in.
 
 ---
 

@@ -58,6 +58,16 @@ pub mod cmd {
     pub const HELLO_REPLY: u8 = 0x85;
 }
 
+/// What a run tests, byte 5 of a `START`. A responder echoes whatever it is
+/// asked, so this only tells a peer's log what it is taking part in.
+pub mod mode {
+    pub const ECHO: u8 = 0x01;
+    pub const SWEEP: u8 = 0x02;
+    pub const THROUGHPUT: u8 = 0x03;
+    pub const LATENCY: u8 = 0x04;
+    pub const RELIABILITY: u8 = 0x05;
+}
+
 /// Which counter a `STATUS` message carries, byte 4.
 pub mod status_field {
     pub const RX_COUNT: u8 = 0x00;
@@ -181,7 +191,7 @@ impl Flags {
 /// A control command, and whatever it carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
-    /// Begin a run: this mode, under this run tag.
+    /// Begin a run: this [`mode`], under this run tag.
     Start {
         mode: u8,
         run: u8,
@@ -834,6 +844,17 @@ mod tests {
                 assert!(!back.bytes_mode);
             }
         }
+    }
+
+    #[test]
+    fn a_start_names_its_mode_in_byte_5() {
+        let start = Command::Start {
+            mode: mode::LATENCY,
+            run: RUN,
+        };
+        let wire = encode(Message::Control(start), flags());
+        assert_eq!(wire[4..6], [cmd::START, 0x04]);
+        assert_eq!(decode(&wire), Some((Message::Control(start), flags())));
     }
 
     #[test]

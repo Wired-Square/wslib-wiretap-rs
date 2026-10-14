@@ -1,5 +1,5 @@
 use super::*;
-use crate::Catalog;
+use crate::{Catalog, Protocol};
 
 const LEGACY: &str = r#"# A legacy modbus catalogue.
 [meta]
@@ -191,7 +191,10 @@ fn interval_flatten_preserves_resolved_intervals() {
     // Spot-check the resolved values survived the move.
     assert_eq!(after.frame(0x100).unwrap().interval, Some(500));
     assert_eq!(after.frame(0x200).unwrap().interval, Some(250));
-    assert_eq!(after.frame(13).unwrap().interval, Some(9000));
+    assert_eq!(
+        after.protocol_frame(Protocol::Modbus, 13).unwrap().interval,
+        Some(9000)
+    );
 }
 
 #[test]

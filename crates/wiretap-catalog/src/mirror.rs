@@ -180,7 +180,7 @@ impl MirrorTracker {
                 .mirror_of
                 .as_deref()
                 .and_then(crate::parse::parse_id)
-                .and_then(|id| catalog.frame(id))
+                .and_then(|id| catalog.protocol_frame(frame.protocol, id))
             else {
                 continue;
             };

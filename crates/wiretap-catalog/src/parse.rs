@@ -1064,12 +1064,17 @@ impl Catalog {
         }
     }
 
-    /// Find a parsed frame by its numeric id, in any protocol. A serial frame
-    /// keyed by a name has none, so is never found here.
+    /// Find a parsed frame of the catalogue's own protocol by its numeric id.
     pub fn frame(&self, id: u32) -> Option<&Frame> {
+        self.protocol_frame(self.protocol, id)
+    }
+
+    /// Find a parsed frame of `protocol` by its numeric id. A serial frame
+    /// keyed by a name has none, so is never found here.
+    pub fn protocol_frame(&self, protocol: Protocol, id: u32) -> Option<&Frame> {
         self.frames
             .iter()
-            .find(|f| f.frame_id == id && !f.is_keyed_by_name())
+            .find(|f| f.protocol == protocol && f.frame_id == id && !f.is_keyed_by_name())
     }
 
     /// Find a frame by its identity: its protocol and authored table key.
@@ -1081,10 +1086,6 @@ impl Catalog {
 
     /// Find the Modbus register frame at protocol (wire) address `register`,
     /// for `register_type` and (when the frame names one) `device_address`.
-    ///
-    /// Protocol-filtered on purpose: [`Self::frame`] matches on `frame_id`
-    /// alone, so in a catalogue holding both — a CAN tunnel and the registers
-    /// it carries — CAN id `0x1E0` and Modbus register 480 are the same lookup.
     ///
     /// `register` is always the address as it appeared on the wire; a catalogue
     /// authored in the traditional 1-based `3xxxx`/`4xxxx` form is converted to
@@ -1350,9 +1351,29 @@ protocol = "carrier_pigeon"
     }
 
     #[test]
+    fn frame_lookup_keeps_to_the_catalogue_protocol() {
+        let toml = r#"
+[meta]
+name = "x"
+default_frame = "modbus"
+[frame.can."0x1E0"]
+length = 8
+[frame.modbus.limits]
+register_number = 480
+register_type = "input"
+length = 1
+"#;
+        let c = Catalog::parse(toml).unwrap();
+        assert_eq!(c.frame(480).unwrap().protocol, Protocol::Modbus);
+        assert_eq!(
+            c.protocol_frame(Protocol::Can, 0x1E0).unwrap().protocol,
+            Protocol::Can
+        );
+        assert!(c.protocol_frame(Protocol::Serial, 480).is_none());
+    }
+
+    #[test]
     fn modbus_register_lookup_is_protocol_filtered() {
-        // CAN 0x1E0 is 480, and so is the Modbus register — `frame()` matches
-        // on the id alone, so only the filtered lookup tells them apart.
         let toml = r#"
 [meta]
 name = "x"
@@ -1368,8 +1389,6 @@ start_bit = 0
 bit_length = 16
 "#;
         let c = Catalog::parse(toml).unwrap();
-        assert_eq!(c.frame(480).unwrap().protocol, Protocol::Can);
-
         let m = c
             .modbus_register_frame(480, RegisterType::Input, 1)
             .unwrap();

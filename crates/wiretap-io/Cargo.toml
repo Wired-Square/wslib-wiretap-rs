@@ -36,7 +36,7 @@ wiretap-catalog = { path = "../wiretap-catalog", optional = true }
 wiretap-decode = { path = "../wiretap-decode", optional = true }
 
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux", target_os = "ios"))'.dependencies]
-tokio = { version = "1", features = ["net", "time"], optional = true }
+tokio = { version = "1.53.3", features = ["net", "time"], optional = true }
 tokio-modbus = { version = "0.17", default-features = false, features = ["tcp"], optional = true }
 wiretap-protocol = { path = "../wiretap-protocol", optional = true }
 

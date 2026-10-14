@@ -43,8 +43,10 @@ impl Port {
             .open(path)
             .map_err(failed)?;
         configure(&file, line, speed, options.exclusive).map_err(|e| failed(e.into()))?;
+        // SAFETY: the `AsyncFd` owns `file`, so its descriptor stays open and unchanged until drop.
+        let fd = unsafe { AsyncFd::register(file) }.map_err(|e| failed(e.into()))?;
         Ok(Self {
-            fd: AsyncFd::new(file).map_err(failed)?,
+            fd,
             buf: vec![0; options.read_buffer.max(1)],
         })
     }

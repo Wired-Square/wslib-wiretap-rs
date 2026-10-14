@@ -192,7 +192,8 @@ fn bind(interface: &str, own_frames: bool) -> io::Result<Raw> {
     socket.set_nonblocking(true)?;
     socket.set_recv_timestamp(true)?;
     socket.set_recv_own_msgs(own_frames)?;
-    AsyncFd::new(socket)
+    // SAFETY: the `AsyncFd` owns `socket`, so its descriptor stays open and unchanged until drop.
+    Ok(unsafe { AsyncFd::register(socket) }?)
 }
 
 /// Error frames are dropped, and FD frames unless `fd`.

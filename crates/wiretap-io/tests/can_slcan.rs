@@ -169,7 +169,7 @@ mod pty {
             let pty = openpty(None, None).expect("openpty");
             let path = ttyname(&pty.slave).expect("ttyname");
             fcntl(pty.master.as_raw_fd(), FcntlArg::F_SETFL(OFlag::O_NONBLOCK)).expect("fcntl");
-            let master = AsyncFd::new(std::fs::File::from(pty.master)).unwrap();
+            let master = unsafe { AsyncFd::register(std::fs::File::from(pty.master)) }.unwrap();
             let received = Arc::new(Mutex::new(Vec::new()));
             let changed = Arc::new(Notify::new());
             let (outbox, out_rx) = mpsc::unbounded_channel();

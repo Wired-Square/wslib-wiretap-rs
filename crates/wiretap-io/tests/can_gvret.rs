@@ -142,7 +142,8 @@ impl FakeGvret {
         let pty = openpty(None, None).expect("openpty");
         let path = ttyname(&pty.slave).expect("ttyname");
         fcntl(pty.master.as_raw_fd(), FcntlArg::F_SETFL(OFlag::O_NONBLOCK)).expect("fcntl");
-        let master = tokio::io::unix::AsyncFd::new(std::fs::File::from(pty.master)).unwrap();
+        let master =
+            unsafe { tokio::io::unix::AsyncFd::register(std::fs::File::from(pty.master)) }.unwrap();
         let link = Link::Serial {
             path: path.to_str().expect("utf-8 path").to_owned(),
             line: serial::LINE,

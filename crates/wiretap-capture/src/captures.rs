@@ -7,8 +7,8 @@ use crate::error::Result;
 pub fn copy_capture_data(conn: &mut Connection, source_id: &str, dest_id: &str) -> Result<usize> {
     let tx = conn.transaction()?;
     let frames = tx.execute(
-        "INSERT INTO frames (capture_id, protocol, timestamp_us, frame_id, bus, dlc, payload, is_extended, is_fd, is_rtr, is_brs, is_esi, source_address, incomplete, direction)
-         SELECT ?2, protocol, timestamp_us, frame_id, bus, dlc, payload, is_extended, is_fd, is_rtr, is_brs, is_esi, source_address, incomplete, direction
+        "INSERT INTO frames (capture_id, protocol, timestamp_us, frame_id, bus, dlc, payload, is_extended, is_fd, is_rtr, is_brs, is_esi, source_address, incomplete, direction, crc_valid)
+         SELECT ?2, protocol, timestamp_us, frame_id, bus, dlc, payload, is_extended, is_fd, is_rtr, is_brs, is_esi, source_address, incomplete, direction, crc_valid
          FROM frames WHERE capture_id = ?1 ORDER BY rowid",
         params![source_id, dest_id],
     )?;
@@ -107,6 +107,19 @@ mod tests {
                 "{capture}"
             );
         }
+    }
+
+    #[test]
+    fn a_frame_keeps_its_crc_verdict_through_copy() {
+        let mut conn = crate::schema::migrated();
+        let frames = [false, true].map(|valid| StoredFrame {
+            crc_valid: Some(valid),
+            ..can_frame(0x0103, &[1])
+        });
+        insert_frames(&mut conn, "c1", &frames).unwrap();
+        copy_capture_data(&mut conn, "c1", "c2").unwrap();
+
+        assert_eq!(crate::get_all_frames(&conn, "c2").unwrap(), frames);
     }
 
     #[test]

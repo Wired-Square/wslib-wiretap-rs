@@ -1,9 +1,12 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::hash::Hash;
 
 use serde::Serialize;
-use wiretap_catalog::model::{Confidence, Frame, Protocol};
+use wiretap_catalog::modbus_rtu_stream::{Direction, ModbusRtuOptions, RtuSettings};
+use wiretap_catalog::model::{Confidence, Frame, Protocol, RegisterType};
 use wiretap_catalog::Catalog;
 use wiretap_decode::frame_id::format_frame_id;
+use wiretap_gateway::filter::CaptureProtocol;
 
 use super::{InventoryRow, PayloadQuery, PayloadSource, Sampling};
 use crate::roles::{profile_bytes, ByteProfile};
@@ -94,6 +97,14 @@ pub struct UncataloguedFrame {
     #[cfg_attr(feature = "ts", ts(optional))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seen_as_hex: Option<String>,
+    /// For a Modbus RTU read, the unit it addressed; `frame_id` is its start
+    /// register.
+    #[cfg_attr(feature = "ts", ts(optional))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unit: Option<u8>,
+    #[cfg_attr(feature = "ts", ts(optional))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub register_type: Option<RegisterType>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -117,6 +128,34 @@ fn frame_label(f: &Frame) -> Option<String> {
     f.name.clone().or_else(|| f.transmitter.clone())
 }
 
+fn register_label(unit: Option<u8>, bank: RegisterType, register: u32) -> String {
+    let unit = unit.map(|u| format!("unit {u} ")).unwrap_or_default();
+    format!("{unit}{} {register}", bank.as_str())
+}
+
+fn frame_id_hex(f: &Frame, is_extended: bool) -> String {
+    match (f.protocol, f.modbus_register_type) {
+        (Protocol::Modbus, Some(bank)) => register_label(f.modbus_device_address, bank, f.frame_id),
+        _ => format_frame_id(f.frame_id, is_extended),
+    }
+}
+
+/// How often, and over what span, the data shows one frame.
+#[derive(Clone, Copy)]
+struct Seen {
+    count: i64,
+    first_us: i64,
+    last_us: i64,
+}
+
+impl Seen {
+    fn add(&mut self, other: Seen) {
+        self.count += other.count;
+        self.first_us = self.first_us.min(other.first_us);
+        self.last_us = self.last_us.max(other.last_us);
+    }
+}
+
 /// The data side of one catalogue frame: every inventory row whose id maps onto
 /// it, rolled up.
 struct DataFrame<'a> {
@@ -136,6 +175,14 @@ impl<'a> DataFrame<'a> {
             count: row.count,
             first_us: row.first_us,
             last_us: row.last_us,
+        }
+    }
+
+    fn seen(&self) -> Seen {
+        Seen {
+            count: self.count,
+            first_us: self.first_us,
+            last_us: self.last_us,
         }
     }
 
@@ -165,7 +212,10 @@ fn catalogue_id(row: &InventoryRow, mask: u32) -> u32 {
 /// The inventory rolled up onto the ids the catalogue is keyed by. `mask` is the
 /// catalogue's `frame_id_mask`, or `u32::MAX` for none, when the only merge is a
 /// std/extended pair.
-fn roll_up(inventory: &[InventoryRow], mask: u32) -> HashMap<u32, DataFrame<'_>> {
+fn roll_up<'a>(
+    inventory: impl IntoIterator<Item = &'a InventoryRow>,
+    mask: u32,
+) -> HashMap<u32, DataFrame<'a>> {
     let mut by_id: HashMap<u32, DataFrame> = HashMap::new();
     for row in inventory {
         by_id
@@ -176,12 +226,108 @@ fn roll_up(inventory: &[InventoryRow], mask: u32) -> HashMap<u32, DataFrame<'_>>
     by_id
 }
 
+const MODBUS_RTU: &str = CaptureProtocol::ModbusRtu.as_str();
+
+#[derive(Default)]
+struct RtuReads<'c> {
+    /// By frame key, with the newest register bytes of the reads carrying it.
+    present: HashMap<&'c str, (Seen, VecDeque<Vec<u8>>)>,
+    uncatalogued: HashMap<(u8, RegisterType, u16), Seen>,
+    /// Messages addressing no register bank, by unit and function code.
+    unbanked: HashMap<(u8, u8), Seen>,
+}
+
+fn tally<K: Eq + Hash>(seen_by: &mut HashMap<K, Seen>, key: K, seen: Seen) {
+    seen_by
+        .entry(key)
+        .and_modify(|s| s.add(seen))
+        .or_insert(seen);
+}
+
+/// Every `modbus_rtu` row re-framed whole, in order, one stream per row so a
+/// response pairs with its request. A read's span is its row's: payloads carry
+/// no timestamps.
+async fn rtu_reads<'c, S: PayloadSource>(
+    source: &S,
+    inventory: &[InventoryRow],
+    catalog: &'c Catalog,
+    sample_limit: usize,
+) -> Result<RtuReads<'c>, S::Error> {
+    let options = ModbusRtuOptions::from_settings(&RtuSettings::tapped(), Some(catalog));
+    let mut reads = RtuReads::default();
+    for row in inventory.iter().filter(|r| r.protocol == MODBUS_RTU) {
+        let seen = Seen {
+            count: 1,
+            first_us: row.first_us,
+            last_us: row.last_us,
+        };
+        let payloads = source
+            .payloads(PayloadQuery {
+                protocol: Some(MODBUS_RTU),
+                frame_id: row.frame_id,
+                is_extended: None,
+                limit: u32::MAX,
+                sampling: Sampling::Recent,
+            })
+            .await?;
+        let mut stream = options.stream();
+        for msg in payloads.iter().filter_map(|raw| stream.interpret(raw)) {
+            if msg.exception.is_some() {
+                continue;
+            }
+            let Some(bank) = RegisterType::from_function_code(msg.function) else {
+                tally(
+                    &mut reads.unbanked,
+                    (msg.device_address, msg.function),
+                    seen,
+                );
+                continue;
+            };
+            // One count per exchange: the response, placed by its request.
+            let (Direction::Response, Some(start), Some(quantity)) =
+                (msg.direction, msg.start_register, msg.quantity)
+            else {
+                continue;
+            };
+            let unit = msg.device_address;
+            let frames = catalog.modbus_register_frames_within(start, quantity, bank, unit);
+            if frames.is_empty() {
+                tally(&mut reads.uncatalogued, (unit, bank, start), seen);
+            }
+            let bytes = if bank.is_register_bank() && sample_limit > 0 {
+                msg.register_bytes()
+            } else {
+                Vec::new()
+            };
+            for (offset, frame) in frames {
+                let (_, samples) = reads
+                    .present
+                    .entry(frame.key.as_str())
+                    .and_modify(|(s, _)| s.add(seen))
+                    .or_insert((seen, VecDeque::new()));
+                let at = usize::from(offset) * 2;
+                let len = usize::from(frame.modbus_register_count.unwrap_or_default()) * 2;
+                if let Some(slice) = bytes.get(at..at + len).filter(|b| !b.is_empty()) {
+                    if samples.len() == sample_limit {
+                        samples.pop_front();
+                    }
+                    samples.push_back(slice.to_vec());
+                }
+            }
+        }
+    }
+    Ok(reads)
+}
+
 /// `catalog`, reported under `catalog_name`, diffed against a source keyed the
-/// way the catalogue is, its `frame_id_mask` applied.
+/// way the catalogue is, its `frame_id_mask` applied. A `modbus_rtu` row holds
+/// whole messages under `unit << 8 | function`, so it is re-framed into reads and
+/// matched by register window instead; a register number and a row id never
+/// match each other.
 ///
-/// Only the inventory's error is returned. A frame whose payloads fail to read
-/// is profiled over none, so one unreadable frame costs its byte roles and not
-/// the report.
+/// A frame whose byte-role payloads fail to read is profiled over none, so one
+/// unreadable frame costs its byte roles and not the report. A `modbus_rtu` row
+/// is counted from its payloads, so its read error is returned.
 pub async fn catalog_coverage<S: PayloadSource>(
     source: &S,
     catalog_name: &str,
@@ -193,12 +339,36 @@ pub async fn catalog_coverage<S: PayloadSource>(
 ) -> Result<CoverageReport, S::Error> {
     let mask = wiretap_catalog::decode::frame_id_mask(catalog).unwrap_or(u32::MAX);
     let inventory = source.inventory(start_us, end_us).await?;
-    let data_by_id = roll_up(&inventory, mask);
+    let rolled_up = |registers: bool| {
+        let rows = inventory.iter().filter(move |r| {
+            r.protocol != MODBUS_RTU && (r.protocol == Protocol::Modbus.as_str()) == registers
+        });
+        roll_up(rows, mask)
+    };
+    let by_register = rolled_up(true);
+    let by_id = rolled_up(false);
+    let profile_limit = if include_byte_roles {
+        sample_limit as usize
+    } else {
+        0
+    };
+    let mut rtu = rtu_reads(source, &inventory, catalog, profile_limit).await?;
+    let data_frames = by_register.len()
+        + by_id.len()
+        + rtu.present.len()
+        + rtu.uncatalogued.len()
+        + rtu.unbanked.len();
+    // A register both polled and read off the line is one frame of data.
+    let mut polled_and_read = HashSet::new();
 
     let mut confidence = ConfidenceTally::default();
     let mut present = Vec::new();
     let mut missing = Vec::new();
-    let catalog_ids: HashSet<u32> = catalog.frames.iter().map(|f| f.frame_id).collect();
+    let catalog_ids: HashSet<(bool, u32)> = catalog
+        .frames
+        .iter()
+        .map(|f| (f.protocol == Protocol::Modbus, f.frame_id))
+        .collect();
 
     for frame in &catalog.frames {
         let sigs = frame.own_signals();
@@ -206,72 +376,118 @@ pub async fn catalog_coverage<S: PayloadSource>(
             confidence.add(s.confidence.into());
         }
 
-        match data_by_id.get(&frame.frame_id) {
-            Some(data) => {
-                let byte_roles = if include_byte_roles {
-                    // Any protocol, and the sampled row's own width: the
-                    // masked rollup is not authoritative about either.
-                    let payloads = source
-                        .payloads(PayloadQuery {
-                            protocol: None,
-                            frame_id: data.top.frame_id,
-                            is_extended: Some(data.top.is_extended),
-                            limit: sample_limit,
-                            sampling: Sampling::Recent,
-                        })
-                        .await
-                        .unwrap_or_default();
-                    Some(profile_bytes(&payloads))
-                } else {
-                    None
-                };
-                present.push(PresentFrame {
-                    frame_id: frame.frame_id,
-                    frame_id_hex: format_frame_id(frame.frame_id, data.top.is_extended),
-                    name: frame_label(frame),
-                    count: data.count,
-                    first_us: data.first_us,
-                    last_us: data.last_us,
-                    signals: sigs
-                        .iter()
-                        .filter_map(|s| {
-                            s.name.clone().map(|name| SignalCoverage {
-                                name,
-                                confidence: s.confidence.into(),
-                            })
-                        })
-                        .collect(),
-                    byte_roles,
-                });
-            }
-            None => missing.push(MissingFrame {
-                frame_id: frame.frame_id,
-                frame_id_hex: format_frame_id(frame.frame_id, frame.is_extended.unwrap_or(false)),
-                name: frame_label(frame),
-            }),
+        let is_modbus = frame.protocol == Protocol::Modbus;
+        let rolled = if is_modbus { &by_register } else { &by_id }.get(&frame.frame_id);
+        let read = is_modbus
+            .then(|| rtu.present.remove(frame.key.as_str()))
+            .flatten();
+        if rolled.is_some() && read.is_some() {
+            polled_and_read.insert(frame.frame_id);
         }
+        let seen = rolled
+            .map(DataFrame::seen)
+            .into_iter()
+            .chain(read.as_ref().map(|r| r.0));
+        let Some(seen) = seen.reduce(|mut a, b| {
+            a.add(b);
+            a
+        }) else {
+            missing.push(MissingFrame {
+                frame_id: frame.frame_id,
+                frame_id_hex: frame_id_hex(frame, frame.is_extended.unwrap_or(false)),
+                name: frame_label(frame),
+            });
+            continue;
+        };
+
+        let byte_roles = match (include_byte_roles, read, rolled) {
+            (false, ..) => None,
+            (true, Some((_, mut samples)), _) => Some(profile_bytes(samples.make_contiguous())),
+            (true, None, Some(data)) => {
+                let payloads = source
+                    .payloads(PayloadQuery {
+                        protocol: Some(&data.top.protocol),
+                        frame_id: data.top.frame_id,
+                        is_extended: Some(data.top.is_extended),
+                        limit: sample_limit,
+                        sampling: Sampling::Recent,
+                    })
+                    .await
+                    .unwrap_or_default();
+                Some(profile_bytes(&payloads))
+            }
+            (true, None, None) => None,
+        };
+        present.push(PresentFrame {
+            frame_id: frame.frame_id,
+            frame_id_hex: frame_id_hex(frame, rolled.is_some_and(|d| d.top.is_extended)),
+            name: frame_label(frame),
+            count: seen.count,
+            first_us: seen.first_us,
+            last_us: seen.last_us,
+            signals: sigs
+                .iter()
+                .filter_map(|s| {
+                    s.name.clone().map(|name| SignalCoverage {
+                        name,
+                        confidence: s.confidence.into(),
+                    })
+                })
+                .collect(),
+            byte_roles,
+        });
     }
 
     // Reported by the id to add to the catalogue, so under a mask one unknown
     // message from five nodes is one frame; the raw id rides along.
-    let mut uncatalogued: Vec<UncataloguedFrame> = data_by_id
-        .iter()
-        .filter(|(id, _)| !catalog_ids.contains(id))
-        .map(|(id, d)| UncataloguedFrame {
-            frame_id: *id,
-            frame_id_hex: format_frame_id(*id, d.top.is_extended),
+    let rolled_up_unknown = [(true, &by_register), (false, &by_id)]
+        .into_iter()
+        .flat_map(|(registers, by)| by.iter().map(move |(id, d)| (registers, *id, d)))
+        .filter(|&(registers, id, _)| !catalog_ids.contains(&(registers, id)))
+        .map(|(_, id, d)| UncataloguedFrame {
+            frame_id: id,
+            frame_id_hex: format_frame_id(id, d.top.is_extended),
             is_extended: d.top.is_extended,
             count: d.count,
-            seen_as_hex: (d.top.frame_id != *id)
+            seen_as_hex: (d.top.frame_id != id)
                 .then(|| format_frame_id(d.top.frame_id, d.top.is_extended)),
-        })
+            unit: None,
+            register_type: None,
+        });
+    let unknown_reads = rtu
+        .uncatalogued
+        .into_iter()
+        .map(|((unit, bank, start), seen)| UncataloguedFrame {
+            frame_id: start.into(),
+            frame_id_hex: register_label(Some(unit), bank, start.into()),
+            is_extended: false,
+            count: seen.count,
+            seen_as_hex: None,
+            unit: Some(unit),
+            register_type: Some(bank),
+        });
+    let unknown_functions =
+        rtu.unbanked
+            .into_iter()
+            .map(|((unit, function), seen)| UncataloguedFrame {
+                frame_id: u32::from(unit) << 8 | u32::from(function),
+                frame_id_hex: format!("unit {unit} fn 0x{function:02X}"),
+                is_extended: false,
+                count: seen.count,
+                seen_as_hex: None,
+                unit: Some(unit),
+                register_type: None,
+            });
+    let mut uncatalogued: Vec<UncataloguedFrame> = rolled_up_unknown
+        .chain(unknown_reads)
+        .chain(unknown_functions)
         .collect();
-    uncatalogued.sort_by_key(|f| f.frame_id);
+    uncatalogued.sort_by(|a, b| (a.frame_id, &a.frame_id_hex).cmp(&(b.frame_id, &b.frame_id_hex)));
 
     Ok(CoverageReport {
         catalog: catalog_name.to_owned(),
         catalog_frames: catalog.frames.len(),
-        data_frames: data_by_id.len(),
+        data_frames: data_frames - polled_and_read.len(),
         present,
         missing,
         uncatalogued,

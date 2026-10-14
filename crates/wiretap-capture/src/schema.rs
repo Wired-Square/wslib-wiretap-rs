@@ -65,7 +65,7 @@ struct Migration {
 }
 
 /// The `user_version` [`migrate`] leaves a database at.
-pub const SCHEMA_VERSION: i64 = 5;
+pub const SCHEMA_VERSION: i64 = 6;
 
 /// Ascending and contiguous from 1; `user_version` 0 is any unstamped shape.
 const MIGRATIONS: &[Migration] = &[
@@ -97,6 +97,11 @@ const MIGRATIONS: &[Migration] = &[
         version: 5,
         name: "frames_can_flags",
         step: MigrationStep::Sql(include_str!("../migrations/0005_frames_can_flags.sql")),
+    },
+    Migration {
+        version: 6,
+        name: "frames_crc_valid",
+        step: MigrationStep::Sql(include_str!("../migrations/0006_frames_crc_valid.sql")),
     },
 ];
 
@@ -320,12 +325,13 @@ mod tests {
             "frames_fid_protocol_index",
             "capture_events",
             "frames_can_flags",
+            "frames_crc_valid",
         ]
         .into_iter()
         .zip(1..)
         .map(|(name, version)| (version, name))
         .collect();
-        assert_eq!(version_of(&conn), 5);
+        assert_eq!(version_of(&conn), 6);
         assert_eq!(
             applied
                 .iter()
@@ -344,7 +350,7 @@ mod tests {
         assert!(has_column(&conn, "capture_metadata", "persistent").unwrap());
         assert!(has_column(&conn, "capture_metadata", "buses").unwrap());
         assert!(has_column(&conn, "capture_events", "duration_us").unwrap());
-        for flag in ["is_rtr", "is_brs", "is_esi"] {
+        for flag in ["is_rtr", "is_brs", "is_esi", "crc_valid"] {
             assert!(has_column(&conn, "frames", flag).unwrap(), "{flag}");
         }
     }
@@ -491,7 +497,7 @@ mod tests {
         )
         .unwrap();
 
-        let applied = migrate(&mut conn).unwrap();
+        let applied = apply_migrations(&mut conn, &MIGRATIONS[..5]).unwrap();
 
         assert_eq!(
             applied,
@@ -507,6 +513,30 @@ mod tests {
             ),
             1000
         );
+    }
+
+    #[test]
+    fn a_v5_database_migrates_to_v6_and_reads_its_frames_crc_unchecked() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        apply_migrations(&mut conn, &MIGRATIONS[..5]).unwrap();
+        conn.execute_batch(
+            "INSERT INTO frames (capture_id, protocol, timestamp_us, frame_id, bus, dlc, payload)
+             VALUES ('c1', 'modbus_rtu', 1, 259, 0, 4, x'01030000');",
+        )
+        .unwrap();
+
+        let applied = migrate(&mut conn).unwrap();
+
+        assert_eq!(
+            applied,
+            [Applied {
+                version: 6,
+                name: "frames_crc_valid"
+            }]
+        );
+        let frames = crate::get_all_frames(&conn, "c1").unwrap();
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].crc_valid, None);
     }
 
     #[test]

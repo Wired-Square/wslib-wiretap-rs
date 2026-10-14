@@ -589,6 +589,17 @@ fn a_row_from_an_older_gateway_has_no_flags() {
 }
 
 #[test]
+fn a_rows_crc_verdict_and_its_absence_reach_the_frame() {
+    assert_eq!(frame(json!({})).unwrap().crc_valid, None);
+    for valid in [false, true] {
+        assert_eq!(
+            frame(json!({ "crc_valid": valid })).unwrap().crc_valid,
+            Some(valid)
+        );
+    }
+}
+
+#[test]
 fn a_modbus_message_over_255_bytes_counts_every_byte() {
     let frame = frame(json!({ "id": 0x0103, "dlc": 256, "data_hex": "00".repeat(256) })).unwrap();
     assert_eq!(frame.len, 256);

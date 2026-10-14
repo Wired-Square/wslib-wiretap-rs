@@ -161,6 +161,20 @@ fn a_frame_rows_can_flags_round_trip() {
 }
 
 #[test]
+fn a_frame_row_without_a_crc_verdict_has_none_and_writes_none() {
+    assert_eq!(round_trip::<FrameBatchRow>(frame_row()).crc_valid, None);
+}
+
+#[test]
+fn a_frame_rows_crc_verdict_round_trips() {
+    for valid in [false, true] {
+        let mut row = frame_row();
+        row["crc_valid"] = json!(valid);
+        assert_eq!(round_trip::<FrameBatchRow>(row).crc_valid, Some(valid));
+    }
+}
+
+#[test]
 fn events_parse() {
     round_trip::<Event>(event());
     round_trip::<EventsResponse>(json!({ "events": [event()] }));

@@ -68,6 +68,10 @@ pub struct FrameBatchRow {
     pub is_brs: bool,
     #[serde(default)]
     pub is_esi: bool,
+    /// A Modbus RTU row's CRC verdict; absent from every other row and from older gateways.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub crc_valid: Option<bool>,
     pub bus: u8,
     pub dir: String,
     pub data_hex: String,

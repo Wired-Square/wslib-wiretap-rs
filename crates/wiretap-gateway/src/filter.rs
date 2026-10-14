@@ -45,7 +45,7 @@ impl CaptureProtocol {
         Self::Serial,
     ];
 
-    pub fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Can => "can",
             Self::CanFd => "canfd",

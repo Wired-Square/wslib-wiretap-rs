@@ -52,6 +52,7 @@ impl InventoryRow {
 /// protocols. Grouping keeps the protocol string off every entry — a busy selection
 /// is thousands of ids across at most three protocols.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ProtocolFrames {
     pub protocol: String,
     pub frame_ids: Vec<u32>,

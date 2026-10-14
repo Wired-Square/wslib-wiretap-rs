@@ -42,9 +42,7 @@ checksum on most frame ids.
 - **`byte_notes`** — a byte profile's notes as codes (`ByteNote`), frame and
   mux-case level; the wording is the caller's
 - **`dashboard`** — a Dashboard panel's counters: `histogram` over a signal's
-  finite values, and `BitToggles`, how often each payload bit flips. The
-  off-by-default `ts` feature derives `ts_rs::TS` on `HistogramBin`, and on
-  `wiretap-gateway`'s query types
+  finite values, and `BitToggles`, how often each payload bit flips
 - **`draft::Draft`** — a catalogue in the making, one frame per protocol and
   key: Payload Changes (`apply_profiles`) and Frame Order (`apply_orders`)
   merged in either order, and `to_ops`, the typed `wiretap-catalog` edit ops
@@ -55,9 +53,7 @@ checksum on most frame ids.
   export: the meta and protocol config a catalogue opens with, a frame per id
   seen, and a Modbus frame per register found. A header field a mask cannot
   say is written as `start_byte` + `bytes`; one with no bytes is not written
-  and comes back as an `ExportFinding`. The `ts` feature
-  derives `ts_rs::TS` on `ExportMeta`, `ExportFinding`, `ExportFrame`,
-  `ModbusExportConfig` and `ModbusRegister`
+  and comes back as an `ExportFinding`
 - **`query`** — the analytical query kernels over rows already read, oldest
   first, answering in `wiretap-gateway`'s result types: byte and frame changes,
   mirror validation (`mirror_compare_set` for a catalogue's inherited bytes), mux
@@ -76,8 +72,14 @@ checksum on most frame ids.
   `Error`, so a store implementing both names `S::Error` once. The methods
   return `impl Future + Send`, and nothing here needs a runtime. The
   off-by-default `testing` feature brings `MemorySource`, frames held in
-  memory for a consumer's tests. The `ts` feature derives `ts_rs::TS` on
-  `InventoryRow` and `OrderStart`
+  memory for a consumer's tests
+
+The off-by-default `ts` feature derives `ts_rs::TS` on every public serde type,
+and turns on the `ts` feature of `wiretap-catalog`, `wiretap-checksum`,
+`wiretap-decode` and `wiretap-gateway`. Three are renamed so one directory holds
+them beside those crates' types: `Endianness` as `NoteEndianness`,
+`roles::MuxCase` as `MuxCaseProfile` and `hypothesis::CandidateReason` as
+`HypothesisReason`.
 
 Per-byte-column statistics live in [`wiretap-checksum`](../wiretap-checksum),
 beside the addressing they are indexed by; reach for them there directly. Roles

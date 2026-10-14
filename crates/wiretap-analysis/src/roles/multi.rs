@@ -14,6 +14,7 @@ const TEXT_PRINTABLE: f64 = 0.9;
 
 /// Byte order, of one pattern or across a frame's patterns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(rename = "NoteEndianness"))]
 #[serde(rename_all = "camelCase")]
 pub enum Endianness {
     Little,
@@ -24,6 +25,7 @@ pub enum Endianness {
 
 /// What a multi-byte pattern is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub enum PatternKind {
     Counter16,
@@ -34,6 +36,7 @@ pub enum PatternKind {
 
 /// Adjacent columns `start..start + len` read as one value.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MultiBytePattern {
     pub start: usize,

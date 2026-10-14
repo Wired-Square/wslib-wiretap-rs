@@ -23,6 +23,7 @@ pub struct TimedPayload {
 
 /// Ids whose payloads mirror each other, directly or through another member.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MirrorGroup {
     /// Ascending.

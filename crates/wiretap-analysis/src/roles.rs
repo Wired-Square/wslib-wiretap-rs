@@ -29,6 +29,7 @@ const ROLLOVER_FOLD: i16 = 200;
 
 /// One column and the role it plays.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ByteColumn {
     #[serde(flatten)]
     pub stats: ColumnStats,
@@ -38,6 +39,7 @@ pub struct ByteColumn {
 
 /// What a byte column does across the sample.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(tag = "role", rename_all = "camelCase")]
 pub enum ByteRole {
     Static {
@@ -60,6 +62,7 @@ pub enum ByteRole {
 
 /// Which way a counter steps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub enum Direction {
     Up,
@@ -68,6 +71,7 @@ pub enum Direction {
 
 /// Which way a sensor trends; `Mixed` oscillates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub enum Trend {
     Increasing,
@@ -77,6 +81,7 @@ pub enum Trend {
 
 /// The range a looping counter cycles through; `modulo` is `max - min + 1`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Loop {
     pub min: u8,
     pub max: u8,
@@ -85,6 +90,7 @@ pub struct Loop {
 
 /// The byte-level profile of one frame id's payloads.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ByteProfile {
     pub sample_count: usize,

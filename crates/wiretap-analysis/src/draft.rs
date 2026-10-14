@@ -29,6 +29,7 @@ pub use export::{
 /// Bytes a frame's header, checksum or mux selector takes; a negative `start`
 /// counts from the end.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ByteSpan {
     pub start: i32,
     pub len: u32,
@@ -73,6 +74,7 @@ impl ByteSpan {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub enum SignalSource {
     /// The caller's.
@@ -84,6 +86,7 @@ pub enum SignalSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct DraftSignal {
     pub name: String,
@@ -208,6 +211,7 @@ pub fn default_interval<'a>(groups: impl IntoIterator<Item = &'a IntervalGroup>)
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MuxCaseDraft {
     pub signals: Vec<DraftSignal>,
@@ -215,6 +219,7 @@ pub struct MuxCaseDraft {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MuxDraft {
     pub selector: MuxSelector,
@@ -222,6 +227,7 @@ pub struct MuxDraft {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct BurstDraft {
     pub frames_per_burst: f64,
@@ -232,6 +238,7 @@ pub struct BurstDraft {
 
 /// What the draft knows of one frame.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct FrameDraft {
     pub protocol: Protocol,
@@ -363,6 +370,7 @@ impl FrameDraft {
 
 /// A catalogue in the making, one [`FrameDraft`] per protocol and key.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Draft {
     pub default_endianness: Endianness,
@@ -616,6 +624,7 @@ fn set_mux(owner: &[String], start_bit: u32) -> EditOp {
 
 /// A `byte_*` signal offered for charting.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CandidateSignal {
     pub name: String,

@@ -54,6 +54,7 @@ const MIN_DISTINCT_FRACTION: f64 = 0.25;
 /// Why a column was ruled out. Kept so a scan can say what it decided rather
 /// than silently omitting the byte.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub enum Rejection {
     /// One value across every payload — padding.
@@ -73,6 +74,7 @@ pub enum Rejection {
 
 /// What one column looks like as a checksum candidate.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ChecksumEvidence {
     /// End-relative index: -1 is the last byte.

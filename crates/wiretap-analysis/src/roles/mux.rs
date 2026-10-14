@@ -9,6 +9,7 @@ use super::{classify_columns, find_patterns, ByteColumn, MultiBytePattern};
 
 /// The bytes that select a mux case.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub enum MuxSelector {
     /// Byte 0.
@@ -37,6 +38,7 @@ impl MuxSelector {
 
 /// A detected mux selector and how often each case occurs.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MuxDetection {
     pub selector: MuxSelector,
@@ -46,6 +48,7 @@ pub struct MuxDetection {
 
 /// A mux frame's cases, each profiled on its own.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MuxAnalysis {
     pub detection: MuxDetection,
@@ -54,6 +57,7 @@ pub struct MuxAnalysis {
 
 /// One mux case's payloads, profiled past the selector.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(rename = "MuxCaseProfile"))]
 #[serde(rename_all = "camelCase")]
 pub struct MuxCase {
     pub value: u16,

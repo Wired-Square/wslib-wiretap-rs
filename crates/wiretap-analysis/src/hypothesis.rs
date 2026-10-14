@@ -25,6 +25,7 @@ pub struct Sweep {
 
 /// One field and how interesting its bytes look.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Candidate {
     pub field: PayloadField,
@@ -35,6 +36,7 @@ pub struct Candidate {
 
 /// A byte role without its detail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub enum RoleKind {
     Static,
@@ -58,6 +60,7 @@ impl From<&ByteRole> for RoleKind {
 
 /// Why a candidate scored as it did; the caller renders these as text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(rename = "HypothesisReason"))]
 #[serde(tag = "code", rename_all = "camelCase")]
 pub enum CandidateReason {
     /// The best-scoring role among the bytes the field spans.

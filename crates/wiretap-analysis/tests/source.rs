@@ -408,6 +408,28 @@ fn a_payload_read_failure_costs_coverage_its_byte_roles_not_the_report() {
 }
 
 #[test]
+fn a_frames_byte_roles_read_only_its_own_protocols_payloads() {
+    let catalog = Catalog::parse(COVERED).unwrap();
+    let mut source = MemorySource::default();
+    for i in 0..3 {
+        source.push("can", 0x100, false, vec![i, 0]);
+    }
+    source.push("modbus", 256, false, vec![9, 9, 9, 9]);
+
+    let report = block_on(catalog_coverage(
+        &source, "covered", &catalog, true, 10, None, None,
+    ))
+    .unwrap();
+
+    let roles = report.present[0].byte_roles.as_ref().unwrap();
+    assert_eq!(
+        (roles.sample_count, roles.max_len),
+        (3, 2),
+        "Modbus register 256 is not CAN 0x100"
+    );
+}
+
+#[test]
 fn the_mcp_shapes_keep_their_casing() {
     let mut source = MemorySource::default();
     source.push("can", 0x100, false, vec![1]);

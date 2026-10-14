@@ -403,11 +403,9 @@ pub async fn catalog_coverage<S: PayloadSource>(
             (false, ..) => None,
             (true, Some((_, mut samples)), _) => Some(profile_bytes(samples.make_contiguous())),
             (true, None, Some(data)) => {
-                // Any protocol, and the sampled row's own width: the masked
-                // rollup is not authoritative about either.
                 let payloads = source
                     .payloads(PayloadQuery {
-                        protocol: None,
+                        protocol: Some(&data.top.protocol),
                         frame_id: data.top.frame_id,
                         is_extended: Some(data.top.is_extended),
                         limit: sample_limit,

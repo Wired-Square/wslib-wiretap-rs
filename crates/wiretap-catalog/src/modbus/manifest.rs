@@ -76,6 +76,7 @@ pub enum ManifestError {
 
 /// A single decoded field within a frame's register block.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ModbusSignal {
     pub name: String,
     pub start_bit: u32,
@@ -162,6 +163,7 @@ impl ModbusSignal {
 /// One Modbus read: a contiguous register block plus the signals that
 /// decode from it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ModbusFrame {
     /// Frame name (the `[frame.modbus.<name>]` table key).
     pub name: String,
@@ -192,6 +194,7 @@ pub struct ModbusFrame {
 /// from the TOML table (the only renamed field is `default_interval` →
 /// [`Self::default_interval_ms`]).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ModbusMeta {
     #[serde(default = "default_device_address")]
     pub device_address: u8,
@@ -221,6 +224,7 @@ impl Default for ModbusMeta {
 
 /// A parsed manifest: connection defaults + the list of frames to poll.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct ModbusManifest {
     pub meta: ModbusMeta,
     pub frames: Vec<ModbusFrame>,
@@ -370,6 +374,7 @@ impl ModbusManifest {
 /// [`group_contiguous`] and sends each batch as one transaction, read-modify-
 /// writing any partially-owned register — the transaction is its own to make.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[non_exhaustive]
 pub struct ModbusWrite {
     #[serde(default)]

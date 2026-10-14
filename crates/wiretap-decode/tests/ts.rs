@@ -6,7 +6,7 @@ use ts_rs::{Config, TS};
 use wiretap_decode::frame_id::MatchedRange;
 use wiretap_decode::groups::{Group, GroupMode, GroupOrder};
 use wiretap_decode::register::{RegisterPairView, RegisterView};
-use wiretap_decode::Endianness;
+use wiretap_decode::{Endianness, PayloadField, ScaledField};
 
 fn decl<T: TS>() -> String {
     T::decl(&Config::new().with_large_int("number"))
@@ -59,5 +59,19 @@ fn a_matched_range_is_two_numbers() {
     assert_eq!(
         decl::<MatchedRange>(),
         "type MatchedRange = { lo: number, hi: number, };"
+    );
+}
+
+#[test]
+fn a_scaled_field_flattens_its_payload_field() {
+    assert_eq!(
+        decl::<PayloadField>(),
+        "type PayloadField = { startBit: number, bitLength: number, endianness: Endianness, \
+         signed: boolean, };"
+    );
+    assert_eq!(
+        decl::<ScaledField>(),
+        "type ScaledField = { factor: number, offset: number, startBit: number, \
+         bitLength: number, endianness: Endianness, signed: boolean, };"
     );
 }

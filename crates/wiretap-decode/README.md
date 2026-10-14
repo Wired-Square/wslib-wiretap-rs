@@ -38,10 +38,9 @@ the catalogue model.
   register as hex, u16, s16 and text; two as u32, s32 and f32 in either word
   order
 
-The off-by-default `ts` feature derives `ts_rs::TS` on `Endianness`, `Group`
-(as `GroupedValue`), `GroupMode`, `GroupOrder`, `RegisterView`,
-`RegisterPairView` and `MatchedRange`, for an app to export; nothing here
-writes a `.ts` file.
+The off-by-default `ts` feature derives `ts_rs::TS` on every public serde type,
+`Group` as `GroupedValue`, for an app to export; nothing here writes a `.ts`
+file.
 
 ## Using it
 

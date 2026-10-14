@@ -124,6 +124,7 @@ impl FromStr for RegisterType {
 
 /// The two banks a Modbus write can target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum WriteBank {
     #[default]

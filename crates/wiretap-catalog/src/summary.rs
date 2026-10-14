@@ -12,6 +12,7 @@ use crate::mux_case::{compare_mux_case_keys, mux_case_values, CaseRange};
 use crate::parse::{parse_id, CatalogError};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CatalogSummary {
     pub name: String,
@@ -26,6 +27,7 @@ pub struct CatalogSummary {
 /// Counts of what the catalogue defines: a mirror's inherited signals and mux
 /// are its source's, counted there.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct SummaryCounts {
     pub frames: ProtocolCounts,
@@ -37,6 +39,7 @@ pub struct SummaryCounts {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ProtocolCounts {
     pub can: usize,
@@ -46,6 +49,7 @@ pub struct ProtocolCounts {
 
 /// A signal with no confidence counts as `none`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ConfidenceCounts {
     pub high: usize,
@@ -55,6 +59,7 @@ pub struct ConfidenceCounts {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct FrameRow {
     pub protocol: Protocol,
@@ -82,6 +87,7 @@ pub struct FrameRow {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Interval {
     pub ms: u64,
@@ -93,6 +99,7 @@ pub struct Interval {
 /// A signal as the model holds it, with the byte order it decodes in: its own
 /// (`signal.endianness`, from `byte_order` or `endianness`) or its protocol's default.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct SignalRow {
     pub byte_order: Endianness,
@@ -100,6 +107,7 @@ pub struct SignalRow {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct MuxRow {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -115,6 +123,7 @@ pub struct MuxRow {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CaseRow {
     pub key: String,

@@ -18,6 +18,7 @@ pub fn is_mux_case_key(key: &str) -> bool {
 
 /// An inclusive run of selector values a case matches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CaseRange {
     pub first: u64,

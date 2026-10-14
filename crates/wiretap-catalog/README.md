@@ -108,10 +108,9 @@ decoding happens once in Rust rather than per consumer.
   the filename rules, `reject_unsafe_filename`, `sanitise_filename`,
   `suggested_filename` and `next_free_filename`, refusing with `UnsafeFilename`
 
-The off-by-default `ts` feature derives `ts_rs::TS` on `DiffKind`, `DiffRow`
-(as `DiffLine`), `RtuSettings` (as `ModbusRtuOptions`), `FramingMode`, `FrameIdConfig` and
-`RegisterType`, for an app to export;
-nothing here writes a `.ts` file.
+The off-by-default `ts` feature derives `ts_rs::TS` on every public serde type,
+`DiffRow` as `DiffLine` and `RtuSettings` as `ModbusRtuOptions`, for an app to
+export; nothing here writes a `.ts` file.
 
 ## Using it
 

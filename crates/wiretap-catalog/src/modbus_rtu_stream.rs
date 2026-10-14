@@ -871,6 +871,7 @@ impl ModbusRtuStream {
 /// [`ModbusRtuStream::with_vendor_lengths`]. A catalogue writes it as a
 /// [`LengthRule`] under its code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct VendorLength {
     pub function: u8,

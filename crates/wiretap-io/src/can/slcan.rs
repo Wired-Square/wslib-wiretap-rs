@@ -75,6 +75,20 @@ pub async fn probe(
     })
 }
 
+/// The commands that set `bitrate` and `data_bitrate`, or `Config` naming the
+/// rates SLCAN takes: what [`open`] refuses before it opens the port.
+pub fn check_rates(
+    bitrate: u32,
+    data_bitrate: Option<u32>,
+) -> Result<(&'static str, Option<&'static str>), CanError> {
+    Ok((
+        command(bitrate, bitrate_command, &NOMINAL_BITRATES)?,
+        data_bitrate
+            .map(|bps| command(bps, data_bitrate_command, &DATA_BITRATES))
+            .transpose()?,
+    ))
+}
+
 /// A freshly plugged USB device can drop what it is sent before this.
 const SETTLE: Duration = Duration::from_millis(200);
 const ANSWER_TIMEOUT: Duration = Duration::from_millis(100);
@@ -127,11 +141,8 @@ impl Device for Slcan {
         config: &SlcanOptions,
         options: &CanOptions,
     ) -> Result<(Self, DeviceInfo), CanError> {
-        let bitrate = command(config.bitrate, bitrate_command, &NOMINAL_BITRATES)?;
-        let data_bitrate = config
-            .data_bitrate
-            .map(|bps| Ok((bps, command(bps, data_bitrate_command, &DATA_BITRATES)?)))
-            .transpose()?;
+        let (bitrate, data_bitrate) = check_rates(config.bitrate, config.data_bitrate)?;
+        let data_bitrate = config.data_bitrate.zip(data_bitrate);
         let port = port::open(&config.path, config.line)?;
         let second = port.try_clone().ok();
         let mut slcan = Self::new(port, data_bitrate.is_some());

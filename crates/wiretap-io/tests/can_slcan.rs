@@ -75,6 +75,24 @@ async fn a_rate_slcan_cannot_name_is_a_config_error_listing_the_rates_before_the
     }
 }
 
+#[test]
+fn check_rates_refuses_what_open_refuses_and_names_the_commands_otherwise() {
+    assert_eq!(slcan::check_rates(500_000, None).unwrap(), ("S6\r", None));
+    assert_eq!(
+        slcan::check_rates(500_000, Some(2_000_000)).unwrap(),
+        ("S6\r", Some("Y2\r"))
+    );
+    for (bitrate, data_bitrate, listed) in [
+        (400_000, None, "10000, 20000"),
+        (500_000, Some(3_000_000), "500000, 1000000"),
+    ] {
+        match slcan::check_rates(bitrate, data_bitrate) {
+            Err(CanError::Config(text)) => assert!(text.contains(listed), "{text}"),
+            other => panic!("{other:?}"),
+        }
+    }
+}
+
 #[tokio::test]
 async fn a_probe_of_a_missing_path_or_bad_settings_fails_before_asking_anything() {
     let error = within(slcan::probe(MISSING, LINE, Duration::from_secs(2))).await;

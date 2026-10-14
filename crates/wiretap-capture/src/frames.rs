@@ -11,7 +11,7 @@ use crate::error::Result;
 pub const STORED_LENGTH: &str = "MAX(dlc, length(payload))";
 
 /// Every column [`row_to_frame`] reads; one it reads and a query omits fails at run time.
-pub(crate) const FRAME_COLUMNS: &str = "rowid, protocol, timestamp_us, frame_id, bus, dlc, payload, is_extended, is_fd, is_rtr, is_brs, is_esi, source_address, incomplete, direction";
+pub(crate) const FRAME_COLUMNS: &str = "rowid, protocol, timestamp_us, frame_id, bus, dlc, payload, is_extended, is_fd, is_rtr, is_brs, is_esi, source_address, incomplete, direction, crc_valid";
 
 /// One `frames` row: a CAN, CAN FD, Modbus or serial frame.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -32,6 +32,8 @@ pub struct StoredFrame {
     pub source_address: Option<u16>,
     pub incomplete: Option<bool>,
     pub direction: Option<Direction>,
+    /// Whether a Modbus RTU message's CRC matched; `None` where nothing checked one.
+    pub crc_valid: Option<bool>,
 }
 
 impl StoredFrame {
@@ -57,6 +59,7 @@ impl StoredFrame {
             source_address: None,
             incomplete: None,
             direction: Some(direction),
+            crc_valid: None,
         }
     }
 
@@ -109,6 +112,9 @@ pub trait FrameRecord {
     fn source_address(&self) -> Option<u16>;
     fn incomplete(&self) -> Option<bool>;
     fn direction(&self) -> Option<Direction>;
+    fn crc_valid(&self) -> Option<bool> {
+        None
+    }
 }
 
 impl FrameRecord for StoredFrame {
@@ -154,6 +160,9 @@ impl FrameRecord for StoredFrame {
     fn direction(&self) -> Option<Direction> {
         self.direction
     }
+    fn crc_valid(&self) -> Option<bool> {
+        self.crc_valid
+    }
 }
 
 fn direction_text(direction: Direction) -> &'static str {
@@ -194,6 +203,7 @@ pub(crate) fn row_to_frame(row: &rusqlite::Row) -> rusqlite::Result<StoredFrame>
             .get::<_, Option<String>>("direction")?
             .as_deref()
             .and_then(parse_direction),
+        crc_valid: row.get("crc_valid")?,
     })
 }
 
@@ -238,8 +248,8 @@ fn insert_frame_rows(
     frames: &[impl FrameRecord],
 ) -> Result<()> {
     let mut stmt = conn.prepare_cached(
-        "INSERT INTO frames (capture_id, protocol, timestamp_us, frame_id, bus, dlc, payload, is_extended, is_fd, is_rtr, is_brs, is_esi, source_address, incomplete, direction)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+        "INSERT INTO frames (capture_id, protocol, timestamp_us, frame_id, bus, dlc, payload, is_extended, is_fd, is_rtr, is_brs, is_esi, source_address, incomplete, direction, crc_valid)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
     )?;
     for f in frames {
         stmt.execute(params![
@@ -258,6 +268,7 @@ fn insert_frame_rows(
             f.source_address().map(i64::from),
             f.incomplete().map(i64::from),
             f.direction().map(direction_text),
+            f.crc_valid(),
         ])?;
     }
     Ok(())
@@ -312,6 +323,14 @@ mod tests {
     }
 
     #[test]
+    fn the_gateways_modbus_rtu_is_the_ingest_row_protocol() {
+        assert_eq!(
+            CaptureProtocol::ModbusRtu.as_str(),
+            wiretap_protocol::ingest::MODBUS_RTU_PROTOCOL
+        );
+    }
+
+    #[test]
     fn only_a_can_row_is_a_can_frame() {
         let modbus = StoredFrame {
             protocol: "modbus".into(),
@@ -322,14 +341,6 @@ mod tests {
             protocol: "lin".into(),
             ..can_frame(3, &[0, 1])
         };
-    #[test]
-    fn the_gateways_modbus_rtu_is_the_ingest_row_protocol() {
-        assert_eq!(
-            CaptureProtocol::ModbusRtu.as_str(),
-            wiretap_protocol::ingest::MODBUS_RTU_PROTOCOL
-        );
-    }
-
         assert_eq!(unknown.capture_protocol(), None);
     }
 
@@ -359,6 +370,11 @@ mod tests {
                 protocol: "future-protocol".into(),
                 ..can_frame(9, &[])
             },
+            StoredFrame {
+                protocol: wiretap_protocol::ingest::MODBUS_RTU_PROTOCOL.into(),
+                crc_valid: Some(false),
+                ..can_frame(0x0103, &[0x01, 0x03, 0x00, 0x00])
+            },
         ];
 
         insert_frames(&mut conn, "c1", &frames).unwrap();
@@ -371,7 +387,10 @@ mod tests {
             .unwrap()
             .collect::<rusqlite::Result<_>>()
             .unwrap();
-        assert_eq!(directions, [Some("rx".into()), Some("tx".into()), None]);
+        assert_eq!(
+            directions,
+            [Some("rx".into()), Some("tx".into()), None, None]
+        );
     }
 
     #[test]

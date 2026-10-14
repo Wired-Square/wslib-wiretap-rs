@@ -322,6 +322,14 @@ mod tests {
             protocol: "lin".into(),
             ..can_frame(3, &[0, 1])
         };
+    #[test]
+    fn the_gateways_modbus_rtu_is_the_ingest_row_protocol() {
+        assert_eq!(
+            CaptureProtocol::ModbusRtu.as_str(),
+            wiretap_protocol::ingest::MODBUS_RTU_PROTOCOL
+        );
+    }
+
         assert_eq!(unknown.capture_protocol(), None);
     }
 

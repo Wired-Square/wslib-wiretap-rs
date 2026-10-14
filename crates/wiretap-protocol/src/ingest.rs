@@ -712,6 +712,10 @@ pub fn record_id_fields(id_flags: u32) -> (u32, bool, bool, bool) {
     )
 }
 
+/// The `protocol` a stored Modbus RTU row carries, in the desktop's capture and
+/// the server's archive alike: [`modbus_id`] its frame id, the whole message its payload.
+pub const MODBUS_RTU_PROTOCOL: &str = "modbus_rtu";
+
 /// The id word a Modbus record carries: `unit << 8 | func`, which is also the
 /// `id` the archive stores, so an inventory groups by conversation.
 pub fn modbus_id(unit: u8, func: u8) -> u32 {
@@ -1906,6 +1910,11 @@ mod tests {
             RecordFields::from_wire(record.kind, record.id_flags, record.flags),
             can_fields(false, true, false, false, 8)
         );
+    }
+
+    #[test]
+    fn a_modbus_rtu_row_is_stored_as_modbus_rtu() {
+        assert_eq!(MODBUS_RTU_PROTOCOL, "modbus_rtu");
     }
 
     #[test]

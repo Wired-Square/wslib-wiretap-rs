@@ -47,19 +47,25 @@ pub const STRONG_MATCH_RATE: f64 = 95.0;
 pub const MAX_SAMPLES: usize = 200;
 
 #[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", default)]
 pub struct ChecksumDetectionOptions {
     /// Checksum offsets to try, end-relative.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub positions: Vec<i32>,
     /// Restrict to checksums of these byte lengths. Empty means both.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub lengths: Vec<usize>,
     /// Byte offsets just past a declared header field, from the view's ID/Source
     /// chips. These widen the calculation-range candidates and earn a small
     /// confidence bonus; they never narrow the search.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub header_boundaries: Vec<i32>,
     /// Percentage below which a candidate is discarded.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub min_match_rate: f64,
     /// Confidence below which a candidate is discarded.
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub min_confidence: u8,
 }
 
@@ -76,6 +82,7 @@ impl Default for ChecksumDetectionOptions {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CalcRange {
     pub calc_start_byte: i32,
@@ -84,6 +91,7 @@ pub struct CalcRange {
 
 /// A checksum configuration that reproduces some or all of the sampled frames.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ChecksumCandidate {
     pub algorithm: ChecksumAlgorithm,
@@ -105,6 +113,7 @@ pub struct ChecksumCandidate {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ChecksumDetectionResult {
     pub candidates: Vec<ChecksumCandidate>,

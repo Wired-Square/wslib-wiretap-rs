@@ -82,6 +82,7 @@ pub fn all_algorithm_ids() -> Vec<&'static str> {
 
 /// One stored algorithm id and how many bytes its checksum occupies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct AlgorithmWidth {
     pub id: &'static str,
@@ -118,6 +119,7 @@ const SCREEN_SAMPLES: usize = 3;
 /// caller's to decide — [`crate::detect`] or the identification pass upstream —
 /// and this module only answers "what algorithm fits *here*".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct SolveTarget {
     /// Byte offset of the checksum; negative counts from the end.
@@ -130,6 +132,7 @@ pub struct SolveTarget {
 
 /// The additive families, in the order they are tried.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub enum AdditiveOp {
     /// `observed = XOR(range) ⊕ offset`
@@ -142,6 +145,7 @@ pub enum AdditiveOp {
 
 /// One conventional `init` and the `xorOut` it implies for this residue.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CrcAlternative {
     pub init: u16,
@@ -151,6 +155,7 @@ pub struct CrcAlternative {
 /// A recovered CRC. `init`/`xor_out` are the canonical pair — always exact, and
 /// always one of several that fit; see [`alternatives`](Self::alternatives).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CrcParameters {
     /// 8 or 16.
@@ -177,6 +182,7 @@ pub struct CrcParameters {
 /// They were declared separately either side of the crate boundary and sorted
 /// against each other in one list.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum ChecksumSpecification {
     Named { algorithm: ChecksumAlgorithm },
@@ -309,6 +315,7 @@ impl ChecksumSpecification {
 
 /// A configuration that reproduces every sample it was solved against.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct SolvedChecksum {
     pub target: SolveTarget,

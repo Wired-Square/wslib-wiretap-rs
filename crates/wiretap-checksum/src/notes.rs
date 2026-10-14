@@ -10,9 +10,11 @@ use serde::Serialize;
 
 /// A translatable note: the frontend renders `t(code, values)`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ChecksumNote {
     pub code: String,
+    #[cfg_attr(feature = "ts", ts(type = "{ [key in string]: unknown }"))]
     pub values: serde_json::Map<String, serde_json::Value>,
 }
 

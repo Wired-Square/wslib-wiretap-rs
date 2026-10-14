@@ -32,6 +32,9 @@ checksum configuration explains these bytes* — and says why when nothing does.
 Explanations cross as `ChecksumNote { code, values }` rather than English, so
 the caller translates.
 
+The off-by-default `ts` feature derives `ts_rs::TS` on every public serde type,
+for an app to export; nothing here writes a `.ts` file.
+
 ## Using it
 
 ```toml

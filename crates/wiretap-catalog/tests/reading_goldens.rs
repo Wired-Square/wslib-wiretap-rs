@@ -354,7 +354,7 @@ fn frame_metadata(catalog: &Catalog, f: &Frame) -> Map<String, Value> {
         Protocol::Serial => {
             m.insert(
                 "encoding".into(),
-                opt(catalog.serial.as_ref().and_then(|s| s.encoding.clone())),
+                opt(catalog.serial.as_ref().and_then(|s| s.encoding)),
             );
             m.insert("frameId".into(), json!(f.key));
             m.insert("delimiter".into(), opt(&f.delimiter));

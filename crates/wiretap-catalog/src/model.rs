@@ -17,6 +17,7 @@ use std::{collections::BTreeMap, str::FromStr};
 use serde::{Deserialize, Serialize};
 
 use crate::modbus_rtu_stream::LengthRule;
+use crate::serial_framing::FramingMode;
 
 /// Byte / word ordering — re-exported from the `wiretap-decode` numeric core.
 pub use wiretap_decode::Endianness;
@@ -748,9 +749,10 @@ fn one() -> u32 {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct SerialConfig {
-    /// `slip` | `cobs` | `raw` | `length_prefixed`.
+    /// Absent where the catalogue names none or one this library cannot frame,
+    /// which [`crate::validate`] reports.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub encoding: Option<String>,
+    pub encoding: Option<FramingMode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub byte_order: Option<Endianness>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

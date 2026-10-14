@@ -2,6 +2,7 @@
 //! [`wiretap_protocol`], Modbus RTU from [`ModbusRtuStream`], behind one enum.
 
 use std::fmt;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use wiretap_decode::frame_id::{extract_frame_id, FrameIdField, FrameIdWidth};
@@ -36,6 +37,25 @@ impl fmt::Display for FramingMode {
             FramingMode::Delimiter => "delimiter",
             FramingMode::ModbusRtu => "modbus_rtu",
         })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("Unknown serial framing '{0}' — use raw, slip, delimiter or modbus_rtu")]
+pub struct UnknownFramingMode(pub String);
+
+/// The serde spelling.
+impl FromStr for FramingMode {
+    type Err = UnknownFramingMode;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "raw" => Ok(FramingMode::Raw),
+            "slip" => Ok(FramingMode::Slip),
+            "delimiter" => Ok(FramingMode::Delimiter),
+            "modbus_rtu" => Ok(FramingMode::ModbusRtu),
+            _ => Err(UnknownFramingMode(s.to_owned())),
+        }
     }
 }
 
@@ -303,6 +323,24 @@ impl SerialFramer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_framing_mode_parses_its_display_spelling_only() {
+        for mode in [
+            FramingMode::Raw,
+            FramingMode::Slip,
+            FramingMode::Delimiter,
+            FramingMode::ModbusRtu,
+        ] {
+            assert_eq!(mode.to_string().parse(), Ok(mode));
+        }
+        for other in ["cobs", "length_prefixed", "Slip", ""] {
+            assert_eq!(
+                other.parse::<FramingMode>(),
+                Err(UnknownFramingMode(other.into()))
+            );
+        }
+    }
 
     #[test]
     fn a_flushed_residue_is_incomplete() {

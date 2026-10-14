@@ -634,9 +634,7 @@ fn parse_can_config(root: &Value) -> Option<CanConfig> {
 fn parse_serial_config(root: &Value) -> Option<SerialConfig> {
     let section = get(root, "meta").and_then(|m| get(m, "serial"))?;
 
-    let encoding = as_str(section, "encoding")
-        .filter(|e| matches!(*e, "slip" | "cobs" | "raw" | "length_prefixed"))
-        .map(str::to_string);
+    let encoding = as_str(section, "encoding").and_then(|e| e.parse().ok());
 
     let checksum = get(section, "checksum").and_then(parse_checksum);
     let fields = parse_header_fields(get(section, "fields"), true);
@@ -1147,6 +1145,7 @@ impl Catalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::FramingMode;
 
     fn sig<'a>(f: &'a Frame, name: &str) -> &'a Signal {
         f.signals
@@ -2000,7 +1999,7 @@ bit_length = 16
         let c = Catalog::parse(toml).unwrap();
         assert_eq!(c.protocol, Protocol::Serial);
         let s = c.serial.as_ref().unwrap();
-        assert_eq!(s.encoding.as_deref(), Some("slip"));
+        assert_eq!(s.encoding, Some(FramingMode::Slip));
         assert_eq!(s.byte_order, Some(Endianness::Big));
         assert_eq!(s.checksum.as_ref().unwrap().algorithm, "crc16");
         assert_eq!(s.checksum.as_ref().unwrap().byte_length, 2);

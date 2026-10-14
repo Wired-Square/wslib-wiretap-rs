@@ -138,7 +138,7 @@ fn serial_config_fields(
         );
     }
     let fields = SerialConfigFields {
-        encoding: config.encoding.clone(),
+        encoding: config.encoding.map(|e| e.to_string()),
         byte_order: Some(meta.default_byte_order),
         frame_id_mask: config.frame_id_mask.map(Mask::Value),
         header_length: config.header_length,
@@ -270,6 +270,7 @@ pub fn modbus_ops(
 mod tests {
     use super::*;
     use wiretap_catalog::model::ChecksumConfig;
+    use wiretap_catalog::FramingMode;
 
     fn meta(version: i64, default_interval: f64) -> ExportMeta {
         ExportMeta {
@@ -346,7 +347,7 @@ mod tests {
     #[test]
     fn a_serial_head_writes_the_header_fields_as_exact_masks() {
         let config = SerialConfig {
-            encoding: Some("slip".into()),
+            encoding: Some(FramingMode::Slip),
             byte_order: Some(Endianness::Big),
             frame_id_mask: Some(0xFF00),
             min_frame_length: Some(4),

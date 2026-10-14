@@ -80,7 +80,7 @@ any_function?: boolean, };"#
 fn a_serial_config_keeps_its_served_camel_case_shape() {
     assert_eq!(
         decl::<SerialConfig>(),
-        "type SerialConfig = { encoding?: string | null, byteOrder?: Endianness | null, \
+        "type SerialConfig = { encoding?: FramingMode | null, byteOrder?: Endianness | null, \
          frameIdMask?: number | null, headerLength?: number | null, \
          minFrameLength?: number | null, checksum?: ChecksumConfig | null, \
          fields?: { [key in string]: HeaderField }, frameIdStartByte?: number | null, \

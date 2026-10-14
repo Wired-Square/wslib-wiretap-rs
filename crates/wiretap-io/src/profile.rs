@@ -8,7 +8,6 @@ mod value;
 
 use std::collections::HashMap;
 
-use serde::de::IntoDeserializer;
 use serde::{Deserialize, Serialize};
 use wiretap_catalog::FramingMode;
 
@@ -108,12 +107,8 @@ impl IOProfile {
     /// The saved `framing_encoding`, in the session's spellings; a name that is
     /// not a framing reads as the kind default.
     pub fn conn_framing(&self) -> FramingMode {
-        self.conn("framing_encoding", |v| {
-            let name: serde::de::value::StrDeserializer<serde::de::value::Error> =
-                v.as_str()?.into_deserializer();
-            FramingMode::deserialize(name).ok()
-        })
-        .unwrap_or_default()
+        self.conn("framing_encoding", |v| v.as_str()?.parse().ok())
+            .unwrap_or_default()
     }
 
     fn missing(&self, key: &str) -> MissingField {

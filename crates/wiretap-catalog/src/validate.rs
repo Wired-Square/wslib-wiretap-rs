@@ -13,6 +13,7 @@ use crate::modbus::{ManifestError, ModbusManifest};
 use crate::modbus_rtu_stream::is_modelled_function;
 use crate::model::{DisplayHint, Endianness, FrameChecksum, ValidationError};
 use crate::parse::{header_position, parse_function_code_key, parse_id, parse_length_rule};
+use crate::serial_framing::FramingMode;
 
 fn err(field: impl Into<String>, message: impl Into<String>) -> ValidationError {
     ValidationError {
@@ -139,7 +140,8 @@ fn require_finite_scale(prefix: &str, table: &Value, errors: &mut Vec<Validation
 }
 
 /// Serial frames require an encoding (declared in `[meta.serial]` or the legacy
-/// `[frame.serial.config]`). Ports the editor's `validateSerialConfig`.
+/// `[frame.serial.config]`), and one declared must be a [`FramingMode`].
+/// Ports the editor's `validateSerialConfig`.
 fn validate_serial_encoding(
     table: &toml::map::Map<String, Value>,
     errors: &mut Vec<ValidationError>,
@@ -149,18 +151,6 @@ fn validate_serial_encoding(
         .and_then(Value::as_table)
         .and_then(|f| f.get("serial"))
         .and_then(Value::as_table);
-    let has_serial_frames = serial
-        .map(|s| s.keys().any(|k| k != "config"))
-        .unwrap_or(false);
-    if !has_serial_frames {
-        return;
-    }
-    let encoding_in = |t: Option<&toml::map::Map<String, Value>>| {
-        t.and_then(|s| s.get("encoding"))
-            .and_then(Value::as_str)
-            .map(|e| !e.is_empty())
-            .unwrap_or(false)
-    };
     let meta_serial = table
         .get("meta")
         .and_then(Value::as_table)
@@ -169,10 +159,25 @@ fn validate_serial_encoding(
     let frame_serial_config = serial
         .and_then(|s| s.get("config"))
         .and_then(Value::as_table);
-    if !encoding_in(meta_serial) && !encoding_in(frame_serial_config) {
+    let mut declared = false;
+    for (prefix, section) in [
+        ("meta.serial", meta_serial),
+        ("frame.serial.config", frame_serial_config),
+    ] {
+        let encoding = section.and_then(|s| s.get("encoding"));
+        let Some(encoding) = encoding.filter(|e| e.as_str() != Some("")) else {
+            continue;
+        };
+        declared = true;
+        if let Err(e) = encoding.as_str().unwrap_or_default().parse::<FramingMode>() {
+            errors.push(err(format!("{prefix}.encoding"), e.to_string()));
+        }
+    }
+    let has_serial_frames = serial.is_some_and(|s| s.keys().any(|k| k != "config"));
+    if has_serial_frames && !declared {
         errors.push(err(
             "frame.serial.config.encoding",
-            "Encoding is required when serial frames exist. Add [frame.serial.config] with encoding = \"slip\", \"cobs\", \"raw\", or \"length_prefixed\".",
+            "Encoding is required when serial frames exist. Add [frame.serial.config] with encoding = \"slip\", \"raw\", \"delimiter\" or \"modbus_rtu\".",
         ));
     }
 }
@@ -1345,6 +1350,36 @@ encoding = "slip"
 length = 4
 "#;
         assert!(!validate(ok)
+            .iter()
+            .any(|e| e.field == "frame.serial.config.encoding"));
+    }
+
+    #[test]
+    fn a_serial_encoding_this_library_cannot_frame_is_reported_and_the_catalogue_still_loads() {
+        for (encoding, refused) in [
+            ("slip", false),
+            ("raw", false),
+            ("delimiter", false),
+            ("modbus_rtu", false),
+            ("cobs", true),
+            ("length_prefixed", true),
+            ("Slip", true),
+        ] {
+            let toml = format!(
+                "[meta]\nname = \"x\"\n[meta.serial]\nencoding = \"{encoding}\"\nbyte_order = \"big\"\n"
+            );
+            let errs = validate(&toml);
+            assert_eq!(
+                errs.iter().any(|e| e.field == "meta.serial.encoding"),
+                refused,
+                "{encoding}: {errs:?}"
+            );
+            let catalog = crate::Catalog::parse(&toml).unwrap();
+            let parsed = catalog.serial.unwrap().encoding;
+            assert_eq!(parsed.is_none(), refused, "{encoding}");
+        }
+        let legacy = "[meta]\nname = \"x\"\n[frame.serial.config]\nencoding = \"cobs\"\n";
+        assert!(validate(legacy)
             .iter()
             .any(|e| e.field == "frame.serial.config.encoding"));
     }

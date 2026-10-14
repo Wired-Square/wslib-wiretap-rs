@@ -74,7 +74,7 @@ pub use mux_case::{compare_mux_case_keys, is_mux_case_key, mux_case_values, Case
 pub use parse::{rtu_rules, CatalogError, RtuRules, RtuRulesError};
 pub use serial_framing::{
     degenerate_framing_field, DegenerateFraming, DelimiterOptions, FrameIdConfig, FramingEncoding,
-    FramingMode, SerialFrame, SerialFramer,
+    FramingMode, SerialFrame, SerialFramer, UnknownFramingMode,
 };
 pub use summary::CatalogSummary;
 pub use text::{DiffKind, DiffRow, UnsafeFilename};

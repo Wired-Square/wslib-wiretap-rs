@@ -38,7 +38,7 @@ for an app to export; nothing here writes a `.ts` file.
 ## Using it
 
 ```toml
-wiretap-checksum = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.10.1" }
+wiretap-checksum = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.10.2" }
 ```
 
 Also used by path within the workspace, by

@@ -51,7 +51,7 @@ call, or the task's.
 ## Using it
 
 ```toml
-wiretap-io = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.10.1", features = ["modbus-tcp"] }
+wiretap-io = { git = "https://github.com/Wired-Square/wslib-wiretap-rs.git", tag = "v0.10.2", features = ["modbus-tcp"] }
 ```
 
 ```rust

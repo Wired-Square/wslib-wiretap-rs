@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 /// `id` must not be the last field: WireTAP-Server's smoke test greps `"id":N,`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct Event {
     pub id: i64,
     pub ts_us: i64,
@@ -15,6 +16,7 @@ pub struct Event {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct NewEvent {
     pub ts_us: i64,
     #[serde(default)]
@@ -25,6 +27,7 @@ pub struct NewEvent {
 
 /// An absent field is left as it was.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct EventPatch {
     pub ts_us: Option<i64>,
     pub duration_us: Option<i64>,
@@ -32,6 +35,7 @@ pub struct EventPatch {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct EventsResponse {
     pub events: Vec<Event>,
 }

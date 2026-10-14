@@ -35,6 +35,7 @@ impl std::error::Error for RequestError {}
 
 /// The body of a `POST /query/*`.
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(untagged)]
 pub enum QueryBody {
     ByteChanges(ByteChangesParams),

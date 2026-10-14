@@ -1,6 +1,6 @@
 #![cfg(feature = "ts")]
 //! Each declaration against the JSON its type serialises to, under the desktop's
-//! `Config` (`large_int` as `number`).
+//! `Config` (`large_int` as `number`), doc comments aside.
 
 use serde_json::json;
 use ts_rs::{Config, TS};
@@ -8,6 +8,9 @@ use wiretap_gateway::*;
 
 fn decl<T: TS>() -> String {
     T::decl(&Config::new().with_large_int("number"))
+        .lines()
+        .filter(|line| !line.starts_with("/**") && !line.starts_with(" *"))
+        .collect()
 }
 
 #[test]
@@ -68,5 +71,59 @@ fn a_result_nests_its_rows_and_stats_by_name() {
         decl::<FirstLastResult>(),
         "type FirstLastResult = { first_timestamp_us: number, first_payload: Array<number>, \
          last_timestamp_us: number, last_payload: Array<number>, total_count: number, };"
+    );
+}
+
+#[test]
+fn a_provenance_leaves_out_what_it_does_not_know() {
+    assert_eq!(
+        serde_json::to_value(Provenance::default()).unwrap(),
+        json!({})
+    );
+    assert_eq!(
+        decl::<Provenance>(),
+        "type Provenance = { repo?: string | null, path?: string | null, \
+         blob_sha?: string | null, ref?: string | null, commit?: string | null, \
+         based_on?: ProvenanceBase | null, };"
+    );
+}
+
+#[test]
+fn a_query_body_is_its_params_untagged_with_the_filter_flattened() {
+    assert_eq!(
+        decl::<QueryBody>(),
+        "type QueryBody = ByteChangesParams | FrameChangesParams | MirrorValidationParams | \
+         MuxStatisticsParams | FirstLastParams | FrequencyParams | DistributionParams | \
+         GapAnalysisParams | PatternSearchParams;"
+    );
+    assert_eq!(
+        decl::<FirstLastParams>(),
+        "type FirstLastParams = { query_id: string | null, frame_id: number, \
+         is_extended: boolean | null, start_time: string | null, end_time: string | null, \
+         protocol?: ArchiveProtocol | null, };"
+    );
+}
+
+#[test]
+fn database_activity_is_its_rows() {
+    assert_eq!(
+        decl::<DatabaseActivity>(),
+        "type DatabaseActivity = { pid: number, database: string | null, \
+         username: string | null, application_name: string | null, \
+         client_addr: string | null, state: string | null, query: string | null, \
+         query_start: string | null, duration_secs: number | null, is_cancellable: boolean, };"
+    );
+    assert_eq!(
+        decl::<DatabaseActivityResult>(),
+        "type DatabaseActivityResult = { queries: Array<DatabaseActivity>, \
+         sessions: Array<DatabaseActivity>, };"
+    );
+}
+
+#[test]
+fn an_import_result_is_named_apart_from_the_desktops() {
+    assert_eq!(
+        decl::<ImportResult>(),
+        "type ArchiveImportResult = { imported: number, elapsed_ms: number, };"
     );
 }

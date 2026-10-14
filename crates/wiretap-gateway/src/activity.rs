@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct DatabaseActivity {
     pub pid: i32,
     pub database: Option<String>,
@@ -19,12 +20,14 @@ pub struct DatabaseActivity {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct DatabaseActivityResult {
     pub queries: Vec<DatabaseActivity>,
     pub sessions: Vec<DatabaseActivity>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 pub struct SignalResponse {
     pub ok: bool,
 }
